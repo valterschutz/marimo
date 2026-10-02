@@ -16,3 +16,12 @@ No user-visible change. The vim command-mode key table (`j`, `k`, `dd`, `yy`, `p
 ## Blocked by
 
 - None (can start immediately).
+
+## Result
+
+Implemented as a pure refactor on commit `1caa0b696`.
+
+- Added `frontend/src/components/editor/navigation/command-mode-keymap.ts` exporting `getCommandModeKeySequenceTable(preset, handlers)`, which switches on `KeymapConfig["preset"]` and currently has one case (`vim`, via the private `getVimCommandModeTable`) plus `default` returning `undefined`; `logNever` guards the exhaustiveness switch so the Helix table (#PRESET) is a sibling `case "helix":` away.
+- `useCellNavigationProps` in `navigation.ts` now builds a `CommandModeKeymapHandlers` object (the existing focus keymap table, `cellId`, `selectedCells`, the delete/copy/paste/create/undo handlers) and calls the new function instead of inlining the vim table; dispatch through `handleVimKeybinding` is unchanged.
+- Vim command-mode behaviour is bit-for-bit identical: same key strings, same handler bodies, same `Record<string, () => boolean>` shape fed to the matcher.
+- Verified: `pnpm vitest run src/components/editor/navigation/` (113 tests, including the "vim mode navigation" block) and `make check` (fe-check + py-check) both pass.
