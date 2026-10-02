@@ -44,6 +44,7 @@ import type { CellActionsDropdownHandle } from "../cell/cell-actions";
 import { useDeleteManyCellsCallback } from "../cell/useDeleteCell";
 import { useRunCells } from "../cell/useRunCells";
 import { useCellClipboard } from "./clipboard";
+import { getCommandModeKeySequenceTable } from "./command-mode-keymap";
 import { focusCell, focusCellEditor, raf2 } from "./focus-utils";
 import {
   getSelectedCells,
@@ -608,45 +609,20 @@ export function useCellNavigationProps(
 
       const selectedCells = getSelectedCells(store);
 
-      // Keymaps when using vim.
+      // Keymaps for the current preset's command mode, if any.
+      const commandModeTable = getCommandModeKeySequenceTable(keymapPreset, {
+        focus: keymaps,
+        cellId,
+        selectedCells,
+        deleteCell: () => shortcuts["cell.delete"](),
+        copyCells,
+        pasteAtCell,
+        createNewCell: actions.createNewCell,
+        undoDeleteCell: actions.undoDeleteCell,
+      });
       if (
-        keymapPreset === "vim" &&
-        handleVimKeybinding(evt.nativeEvent || evt, {
-          j: keymaps.ArrowDown,
-          k: keymaps.ArrowUp,
-          h: keymaps.ArrowLeft,
-          l: keymaps.ArrowRight,
-          i: keymaps.Enter,
-          "shift+j": keymaps["Shift+ArrowDown"],
-          "shift+k": keymaps["Shift+ArrowUp"],
-          "g g": keymaps["Mod+ArrowUp"],
-          "shift+g": keymaps["Mod+ArrowDown"],
-          "d d": () => shortcuts["cell.delete"](),
-          "y y": () => {
-            copyCells(selectedCells.size >= 2 ? [...selectedCells] : [cellId]);
-            return true;
-          },
-          p: () => {
-            pasteAtCell(cellId, { before: false });
-            return true;
-          },
-          "shift+p": () => {
-            pasteAtCell(cellId, { before: true });
-            return true;
-          },
-          o: () => {
-            actions.createNewCell({ cellId, before: false, autoFocus: true });
-            return true;
-          },
-          "shift+o": () => {
-            actions.createNewCell({ cellId, before: true, autoFocus: true });
-            return true;
-          },
-          u: () => {
-            actions.undoDeleteCell();
-            return true;
-          },
-        })
+        commandModeTable &&
+        handleVimKeybinding(evt.nativeEvent || evt, commandModeTable)
       ) {
         evt.preventDefault();
         return;
