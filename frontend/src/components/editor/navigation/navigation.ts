@@ -51,9 +51,11 @@ import { useCellClipboard } from "./clipboard";
 import { getCommandModeKeySequenceTable } from "./command-mode-keymap";
 import { focusCell, focusCellEditor, raf2 } from "./focus-utils";
 import {
+  getIsSelectMode,
   getSelectedCells,
   useCellSelectionActions,
   useIsCellSelected,
+  useIsSelectMode,
 } from "./selection";
 import { useTemporarilyShownCodeActions } from "./state";
 import { handleVimKeybinding } from "./vim-bindings";
@@ -204,6 +206,7 @@ export function useCellNavigationProps(
   const { copyCells, pasteAtCell, cutCells } = useCellClipboard();
   const rawSelectionActions = useCellSelectionActions();
   const isSelected = useIsCellSelected(cellId);
+  const isSelectMode = useIsSelectMode();
   const pendingDeleteService = usePendingDeleteService();
   const deleteCells = useDeleteManyCellsCallback();
   const userConfig = useAtomValue(userConfigAtom);
@@ -223,6 +226,7 @@ export function useCellNavigationProps(
       pendingDeleteService.clear();
       rawSelectionActions.select(args);
     },
+    setSelectMode: rawSelectionActions.setSelectMode,
   };
 
   const hotkeys = useAtomValue(hotkeysAtom);
@@ -350,7 +354,8 @@ export function useCellNavigationProps(
             store.set(clearPendingCutAtom);
             return true;
           }
-          if (isSelected) {
+          // Also leaves Helix select mode when this cell isn't selected.
+          if (isSelected || getIsSelectMode(store)) {
             selectionActions.clear();
             return true;
           }
@@ -631,6 +636,21 @@ export function useCellNavigationProps(
         focus: keymaps,
         cellId,
         selectedCells,
+        selectMode: getIsSelectMode(store),
+        toggleSelectMode: () => {
+          if (getIsSelectMode(store)) {
+            selectionActions.setSelectMode({ selectMode: false });
+            return true;
+          }
+          // Select mode always shows its ring on at least the focused cell.
+          if (!selectedCells.has(cellId)) {
+            selectionActions.select({ cellId });
+          }
+          selectionActions.setSelectMode({ selectMode: true });
+          return true;
+        },
+        exitSelectMode: () =>
+          selectionActions.setSelectMode({ selectMode: false }),
         deleteCell: () => shortcuts["cell.delete"](),
         deleteCellWithClipboardCopy: () => {
           // Helix's `d` deletes immediately; destructive delete is implied
@@ -693,8 +713,9 @@ export function useCellNavigationProps(
 
   return mergeProps(focusWithinProps, keyboardProps, {
     "data-selected": isSelected,
+    "data-select-mode": isSelectMode,
     className:
-      "data-[selected=true]:ring-1 data-[selected=true]:ring-(--blue-8) data-[selected=true]:ring-offset-1",
+      "data-[selected=true]:ring-1 data-[selected=true]:ring-(--blue-8) data-[selected=true]:ring-offset-1 data-[selected=true]:data-[select-mode=true]:ring-(--orange-8)",
   });
 }
 

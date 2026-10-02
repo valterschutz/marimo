@@ -198,6 +198,9 @@ describe("useCellNavigationProps", () => {
     });
     mockUseDeleteManyCellsCallback.mockReturnValue(mockDeleteCells);
 
+    // Reset config overrides
+    store.set(configOverridesAtom, {});
+
     // Setup default config in store
     store.set(userConfigAtom, {
       ...defaultUserConfig(),
@@ -1013,6 +1016,150 @@ describe("useCellNavigationProps", () => {
       pressKeys(mockCellId, [{ key: "u" }]);
 
       expect(mockCellActions.undoDeleteCell).toHaveBeenCalledOnce();
+    });
+
+    describe("multi-cell selection", () => {
+      const getSelection = () => store.get(selectionTesting.cellSelectionAtom);
+
+      const enterSelectMode = (cellIds: (typeof cellId1)[]) => {
+        const selectionActions = setupSelection();
+        selectionActions.select({ cellId: cellIds[0] });
+        selectionActions.extend({
+          cellId: cellIds[cellIds.length - 1],
+          allCellIds: store.get(notebookAtom).cellIds,
+        });
+        selectionActions.setSelectMode({ selectMode: true });
+      };
+
+      it("should extend the selection to the next cell when 'x' is pressed", () => {
+        const [mockEvent] = pressKeys(cellId1, [{ key: "x" }]);
+
+        expect(getSelection().selected).toEqual(new Set([cellId1, cellId2]));
+        expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+          cellId: cellId1,
+          where: "after",
+        });
+        expect(mockCutCell).not.toHaveBeenCalled();
+        expect(mockEvent.preventDefault).toHaveBeenCalled();
+      });
+
+      it("should extend the selection to the previous cell when 'X' is pressed", () => {
+        pressKeys(cellId2, [{ key: "X", shiftKey: true }]);
+
+        expect(getSelection().selected).toEqual(new Set([cellId1, cellId2]));
+        expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+          cellId: cellId2,
+          where: "before",
+        });
+      });
+
+      it("should enter select mode on the focused cell when 'v' is pressed", () => {
+        const [mockEvent] = pressKeys(cellId2, [{ key: "v" }]);
+
+        expect(getSelection().selectMode).toBe(true);
+        expect(getSelection().selected).toEqual(new Set([cellId2]));
+        expect(mockPasteCell).not.toHaveBeenCalled();
+        expect(mockEvent.preventDefault).toHaveBeenCalled();
+      });
+
+      it("should keep the selection when 'v' is pressed in select mode", () => {
+        enterSelectMode([cellId1, cellId2]);
+
+        pressKeys(cellId2, [{ key: "v" }]);
+
+        expect(getSelection().selectMode).toBe(false);
+        expect(getSelection().selected).toEqual(new Set([cellId1, cellId2]));
+      });
+
+      it("should extend the selection with 'j' and 'k' in select mode", () => {
+        pressKeys(cellId1, [{ key: "v" }]);
+        pressKeys(cellId1, [{ key: "j" }]);
+        pressKeys(cellId2, [{ key: "j" }]);
+
+        expect(getSelection().selected).toEqual(
+          new Set([cellId1, cellId2, cellId3]),
+        );
+
+        pressKeys(cellId3, [{ key: "k" }]);
+
+        expect(getSelection().selected).toEqual(new Set([cellId1, cellId2]));
+        expect(getSelection().selectMode).toBe(true);
+      });
+
+      it("should move focus with 'j' after leaving select mode with 'v'", () => {
+        enterSelectMode([cellId1, cellId2]);
+
+        pressKeys(cellId2, [{ key: "v" }]);
+        pressKeys(cellId2, [{ key: "j" }]);
+
+        expect(mockCellActions.focusCell).toHaveBeenCalledExactlyOnceWith({
+          cellId: cellId2,
+          where: "after",
+        });
+        expect(getSelection().selected.size).toBe(0);
+      });
+
+      it("should clear the selection and leave select mode on Escape", () => {
+        enterSelectMode([cellId1, cellId2]);
+
+        const [mockEvent] = pressKeys(cellId2, [{ key: "Escape" }]);
+
+        expect(getSelection()).toEqual(selectionTesting.initialState());
+        expect(mockEvent.preventDefault).toHaveBeenCalled();
+      });
+
+      it("should yank the whole selection and leave select mode when 'y' is pressed", () => {
+        enterSelectMode([cellId1, cellId3]);
+
+        pressKeys(cellId3, [{ key: "y" }]);
+
+        expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([
+          cellId1,
+          cellId2,
+          cellId3,
+        ]);
+        expect(getSelection().selectMode).toBe(false);
+        expect(getSelection().selected).toEqual(
+          new Set([cellId1, cellId2, cellId3]),
+        );
+      });
+
+      it("should delete the whole selection and leave select mode when 'd' is pressed", () => {
+        enterSelectMode([cellId1, cellId2]);
+
+        pressKeys(cellId2, [{ key: "d" }]);
+
+        expect(mockDeleteCells).toHaveBeenCalledExactlyOnceWith({
+          cellIds: [cellId1, cellId2],
+        });
+        expect(getSelection().selectMode).toBe(false);
+      });
+
+      it.each(["J", "K"] as const)(
+        "should do nothing for '%s' with a multi-cell selection in select mode",
+        (key) => {
+          enterSelectMode([cellId1, cellId2]);
+
+          pressKeys(cellId2, [{ key, shiftKey: true }]);
+
+          expect(mockCellActions.moveCell).not.toHaveBeenCalled();
+          expect(getSelection().selected).toEqual(new Set([cellId1, cellId2]));
+        },
+      );
+
+      it("should expose select mode as a data attribute", () => {
+        const { result } = renderWithProvider(() =>
+          useCellNavigationProps(cellId1, options),
+        );
+        expect(result.current["data-select-mode"]).toBe(false);
+
+        act(() => {
+          enterSelectMode([cellId1]);
+        });
+
+        expect(result.current["data-select-mode"]).toBe(true);
+        expect(result.current["data-selected"]).toBe(true);
+      });
     });
   });
 

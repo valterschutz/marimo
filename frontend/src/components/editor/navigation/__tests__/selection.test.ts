@@ -32,6 +32,7 @@ describe("cell selection reducer", () => {
       selectionStart: null,
       selectionEnd: null,
       selected: new Set(),
+      selectMode: false,
     });
   });
 
@@ -42,6 +43,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.a,
       selectionEnd: CellIds.a,
       selected: new Set([CellIds.a]),
+      selectMode: false,
     });
   });
 
@@ -53,6 +55,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.b,
       selectionEnd: CellIds.b,
       selected: new Set([CellIds.b]),
+      selectMode: false,
     });
   });
 
@@ -71,6 +74,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.a,
       selectionEnd: CellIds.c,
       selected: new Set([CellIds.a, CellIds.b, CellIds.c]),
+      selectMode: false,
     });
   });
 
@@ -89,6 +93,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.c,
       selectionEnd: CellIds.a,
       selected: new Set([CellIds.a, CellIds.b, CellIds.c]),
+      selectMode: false,
     });
   });
 
@@ -105,6 +110,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.b,
       selectionEnd: CellIds.b,
       selected: new Set([CellIds.b]),
+      selectMode: false,
     });
   });
 
@@ -118,6 +124,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.b,
       selectionEnd: CellIds.b,
       selected: new Set([CellIds.b]),
+      selectMode: false,
     });
   });
 
@@ -129,6 +136,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.d, // not in allCellIds
       selectionEnd: CellIds.d,
       selected: new Set([CellIds.d]),
+      selectMode: false,
     };
 
     // Test reducer directly since we need to start with custom state
@@ -141,6 +149,7 @@ describe("cell selection reducer", () => {
       selectionStart: CellIds.b,
       selectionEnd: CellIds.b,
       selected: new Set([CellIds.b]),
+      selectMode: false,
     });
   });
 
@@ -156,6 +165,7 @@ describe("cell selection reducer", () => {
       selectionStart: null,
       selectionEnd: null,
       selected: new Set(),
+      selectMode: false,
     });
   });
 
@@ -167,6 +177,7 @@ describe("cell selection reducer", () => {
       selectionStart: null,
       selectionEnd: null,
       selected: new Set(),
+      selectMode: false,
     });
   });
 
@@ -191,5 +202,49 @@ describe("cell selection reducer", () => {
     // Clear everything
     actions.clear();
     expect(state.selected.size).toBe(0);
+  });
+
+  it("should keep select mode when selecting and extending", () => {
+    const allCellIds = MultiColumn.from([[CellIds.a, CellIds.b, CellIds.c]]);
+
+    actions.select({ cellId: CellIds.a });
+    actions.setSelectMode({ selectMode: true });
+    actions.extend({ cellId: CellIds.b, allCellIds });
+    actions.select({ cellId: CellIds.c });
+
+    expect(state).toEqual({
+      selectionStart: CellIds.c,
+      selectionEnd: CellIds.c,
+      selected: new Set([CellIds.c]),
+      selectMode: true,
+    });
+  });
+
+  it("should leave select mode without clearing the selection", () => {
+    actions.select({ cellId: CellIds.a });
+    actions.setSelectMode({ selectMode: true });
+    actions.setSelectMode({ selectMode: false });
+
+    expect(state).toEqual({
+      selectionStart: CellIds.a,
+      selectionEnd: CellIds.a,
+      selected: new Set([CellIds.a]),
+      selectMode: false,
+    });
+  });
+
+  it("should clear select mode with the selection", () => {
+    actions.select({ cellId: CellIds.a });
+    actions.setSelectMode({ selectMode: true });
+    actions.clear();
+
+    expect(state).toEqual(initialState());
+  });
+
+  it("should clear select mode without a selection", () => {
+    actions.setSelectMode({ selectMode: true });
+    actions.clear();
+
+    expect(state).toEqual(initialState());
   });
 });
