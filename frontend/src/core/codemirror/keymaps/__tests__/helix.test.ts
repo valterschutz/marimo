@@ -1,9 +1,15 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
+import { aiExtension } from "@marimo-team/codemirror-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import { helixExtension, isInHelixNormalMode, setHelixMode } from "../helix";
+import {
+  helixExtension,
+  hideAiEditTriggerInHelixNormalMode,
+  isInHelixNormalMode,
+  setHelixMode,
+} from "../helix";
 
 describe("setHelixMode", () => {
   const views: EditorView[] = [];
@@ -86,5 +92,96 @@ describe("setHelixMode", () => {
     setHelixMode(view, "normal");
     press(view, "u");
     expect(view.state.doc.toString()).toBe("a");
+  });
+});
+
+describe("hideAiEditTriggerInHelixNormalMode", () => {
+  const views: EditorView[] = [];
+
+  function createView(doc: string) {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [
+          helixExtension(),
+          aiExtension({ prompt: async () => "" }),
+          hideAiEditTriggerInHelixNormalMode(),
+        ],
+      }),
+      parent: document.body,
+    });
+    views.push(view);
+    return view;
+  }
+
+  function press(view: EditorView, key: string) {
+    runScopeHandlers(view, new KeyboardEvent("keydown", { key }), "editor");
+  }
+
+  function isTriggerHidden(view: EditorView) {
+    const trigger = view.dom.querySelector(".cm-ai-tooltip-button");
+    if (!trigger) {
+      throw new Error("AI edit trigger not mounted");
+    }
+    return getComputedStyle(trigger).display === "none";
+  }
+
+  afterEach(() => {
+    for (const view of views.splice(0)) {
+      view.destroy();
+    }
+  });
+
+  it("hides the trigger after a normal-mode motion", () => {
+    const view = createView("print(1)");
+    expect(isInHelixNormalMode(view)).toBe(true);
+
+    press(view, "l");
+    expect(view.state.selection.main.empty).toBe(false);
+    expect(isTriggerHidden(view)).toBe(true);
+  });
+
+  it("shows the trigger for an insert-mode selection", () => {
+    const view = createView("print(1)");
+    press(view, "i");
+
+    view.dispatch({ selection: EditorSelection.range(0, 5) });
+    expect(isTriggerHidden(view)).toBe(false);
+  });
+
+  it("hides the trigger again when Escape returns to normal mode", () => {
+    const view = createView("print(1)");
+    press(view, "i");
+    view.dispatch({ selection: EditorSelection.range(0, 5) });
+    expect(isTriggerHidden(view)).toBe(false);
+
+    press(view, "Escape");
+    expect(isInHelixNormalMode(view)).toBe(true);
+    expect(isTriggerHidden(view)).toBe(true);
+  });
+
+  it("shows the trigger for a pointer selection in normal mode", () => {
+    const view = createView("print(1)");
+    press(view, "l");
+    expect(isTriggerHidden(view)).toBe(true);
+
+    view.dispatch({
+      selection: EditorSelection.range(0, 5),
+      userEvent: "select.pointer",
+    });
+    expect(isTriggerHidden(view)).toBe(false);
+
+    // The next motion is keyboard-driven again.
+    press(view, "l");
+    expect(isTriggerHidden(view)).toBe(true);
+  });
+
+  it("keeps the trigger hidden across focus changes", () => {
+    const view = createView("print(1)");
+    press(view, "l");
+
+    view.contentDOM.dispatchEvent(new FocusEvent("focus"));
+    view.contentDOM.dispatchEvent(new FocusEvent("blur"));
+    expect(isTriggerHidden(view)).toBe(true);
   });
 });

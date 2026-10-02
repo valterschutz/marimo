@@ -1,9 +1,14 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+} from "@codemirror/state";
+import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
 import { describe, expect, test, vi } from "vitest";
 import { cellId } from "@/__tests__/branded";
+import type { KeymapConfig } from "@/core/config/config-schema";
 import { OverridingHotkeyProvider } from "@/core/hotkeys/hotkeys";
 import { Objects } from "@/utils/objects";
 import type { CodemirrorCellActions } from "../cells/state";
@@ -193,6 +198,65 @@ test("go to definition falls through to lower-priority LSP keymap", () => {
   } finally {
     view.destroy();
   }
+});
+
+describe("inline AI edit trigger", () => {
+  function createView(preset: KeymapConfig["preset"]) {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "print(1)",
+        extensions: setup({
+          keymapConfig: { preset, overrides: {} },
+          enableAI: true,
+          inlineAiTooltip: true,
+        }),
+      }),
+      parent: document.body,
+    });
+    // The trigger hides itself while the editor is unfocused.
+    view.focus();
+    expect(view.hasFocus).toBe(true);
+    return view;
+  }
+
+  function isTriggerHidden(view: EditorView) {
+    const trigger = view.dom.querySelector(".cm-ai-tooltip-button");
+    if (!trigger) {
+      throw new Error("AI edit trigger not mounted");
+    }
+    return getComputedStyle(trigger).display === "none";
+  }
+
+  test("helix hides the trigger after a normal-mode motion", () => {
+    const view = createView("helix");
+    try {
+      runScopeHandlers(
+        view,
+        new KeyboardEvent("keydown", { key: "l" }),
+        "editor",
+      );
+      expect(view.state.selection.main.empty).toBe(false);
+      expect(isTriggerHidden(view)).toBe(true);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  test.each(["default", "vim"] as const)(
+    "%s shows the trigger for a keyboard selection",
+    (preset) => {
+      const view = createView(preset);
+      try {
+        view.dispatch({
+          selection: EditorSelection.range(0, 5),
+          userEvent: "select",
+        });
+        expect(isTriggerHidden(view)).toBe(false);
+      } finally {
+        view.destroy();
+      }
+    },
+  );
 });
 
 test("placeholder adds another extension", () => {

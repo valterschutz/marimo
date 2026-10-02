@@ -60,6 +60,7 @@ import { historyCompartment } from "./editing/extensions";
 import { scrollActiveLineIntoViewExtension } from "./extensions";
 import { findReplaceBundle } from "./find-replace/extension";
 import { goToDefinitionBundle } from "./go-to-definition/extension";
+import { hideAiEditTriggerInHelixNormalMode } from "./keymaps/helix";
 import { keymapBundle } from "./keymaps/keymaps";
 import { getCurrentLanguageAdapter } from "./language/commands";
 import { adaptiveLanguageConfiguration } from "./language/extension";
@@ -192,6 +193,9 @@ export const setupCodeMirror = (opts: CodeMirrorSetupOpts): Extension[] => {
           triggerOptions.of({
             hideOnBlur: true,
           }),
+          keymapConfig.preset === "helix"
+            ? hideAiEditTriggerInHelixNormalMode()
+            : [],
         ]
       : [],
     // Reactive references highlighting

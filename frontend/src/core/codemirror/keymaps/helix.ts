@@ -1,6 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import type { Extension } from "@codemirror/state";
+import { type Extension, StateField } from "@codemirror/state";
 import {
   type Command,
   EditorView,
@@ -72,6 +72,42 @@ export function helixExtension(): Extension[] {
     }),
     helix({ config: { "editor.cursor-shape.insert": "bar" } }),
     commands.of(typableCommands()),
+  ];
+}
+
+const HIDE_AI_EDIT_TRIGGER_ATTRIBUTE = "data-hide-ai-edit-trigger";
+
+/** Whether the current selection was made with the pointer. */
+const pointerSelectionField = StateField.define<boolean>({
+  create: () => false,
+  update: (pointerSelection, tr) =>
+    tr.selection ? tr.isUserEvent("select.pointer") : pointerSelection,
+});
+
+/**
+ * Hide the inline AI edit trigger while the engine is in normal mode and the
+ * selection came from the keyboard.
+ *
+ * Every normal-mode motion leaves a non-empty selection, which would otherwise
+ * show the trigger on each cursor movement. Pointer and insert-mode selections
+ * still show it, like the other presets. Must come after `helixExtension()`
+ * so the mode is read after the engine has updated it.
+ */
+export function hideAiEditTriggerInHelixNormalMode(): Extension {
+  return [
+    pointerSelectionField,
+    // An attribute rather than a class: CodeMirror rewrites the editor's
+    // class attribute whenever focus changes.
+    EditorView.updateListener.of(({ view, state }) => {
+      const hide =
+        !state.field(pointerSelectionField) && isInHelixNormalMode(view);
+      view.dom.toggleAttribute(HIDE_AI_EDIT_TRIGGER_ATTRIBUTE, hide);
+    }),
+    EditorView.theme({
+      [`&[${HIDE_AI_EDIT_TRIGGER_ATTRIBUTE}] .cm-ai-tooltip-button`]: {
+        display: "none !important",
+      },
+    }),
   ];
 }
 
