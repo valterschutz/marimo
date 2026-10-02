@@ -17,3 +17,11 @@ In Helix cell command mode, `J`/`K` move the focused cell down/up. `d` copies th
 ## Blocked by
 
 - #NAV
+
+## Result
+
+Implemented in `frontend/src/components/editor/navigation/command-mode-keymap.ts` and `navigation.ts`. The Helix command-mode table gained `shift+j`/`shift+k` (move cell down/up, no-op when the selection has more than one cell), `d` (copy to clipboard then delete immediately, reusing `copyCells` and the existing `useDeleteManyCellsCallback`, refusing on a running/queued cell), `y` (copy only), `p`/`shift+p` (paste after/before, reusing `pasteAtCell`), and `u` (reusing `undoDeleteCell`). The running-cell guard and cell-id-to-delete computation were extracted from the existing `cell.delete` shortcut into a shared `getCellIdsToDelete` helper so Helix's single-press `d` and the pre-existing pending-delete flow share the same guard. `shift+j`/`shift+k` reuse the boundary-checked `cell.moveUp`/`cell.moveDown` handlers for the single-cell case.
+
+Tests added to `frontend/src/components/editor/navigation/__tests__/navigation.test.ts` under "helix mode navigation" cover `shift+j`, `shift+k` (including the no-op with a multi-cell selection), `d` (single cell, a selection, and the running-cell refusal), `y`, `p`, `shift+p`, and `u`.
+
+`make check` passes (pre-existing, unrelated `context-manager-iterator` ruff findings in untouched files do not fail the target). `pnpm vitest run` for the navigation test file: 101 passed.

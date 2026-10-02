@@ -29,6 +29,10 @@ export interface CommandModeKeymapHandlers {
   cellId: CellId;
   selectedCells: ReadonlySet<CellId>;
   deleteCell: () => boolean;
+  /** Copies the focused cell (or selection) to the clipboard, then deletes it immediately, refusing on a running or queued cell. */
+  deleteCellWithClipboardCopy: () => boolean;
+  moveCellUp: () => boolean;
+  moveCellDown: () => boolean;
   copyCells: (cellIds: CellId[]) => void;
   pasteAtCell: (cellId: CellId, opts?: { before?: boolean }) => void;
   createNewCell: (opts: {
@@ -91,7 +95,7 @@ function getVimCommandModeTable(
 function getHelixCommandModeTable(
   handlers: CommandModeKeymapHandlers,
 ): CommandModeKeySequenceTable {
-  const { focus, cellId } = handlers;
+  const { focus, cellId, selectedCells, copyCells, pasteAtCell } = handlers;
   // Autofocus keeps cell-level focus when a cell is created from command mode,
   // so open the new cell's editor in insert mode, like Helix's `o`/`O`. The
   // cell renders, then builds and attaches its editor, over the next frames.
@@ -121,6 +125,29 @@ function getHelixCommandModeTable(
     l: focus.ArrowRight,
     "g g": focus["Mod+ArrowUp"],
     "shift+g": focus["Mod+ArrowDown"],
+    // No-op while a block of more than one cell is selected, so a selection
+    // is never silently split by moving only the focused cell.
+    "shift+j": () =>
+      selectedCells.size >= 2 ? false : handlers.moveCellDown(),
+    "shift+k": () =>
+      selectedCells.size >= 2 ? false : handlers.moveCellUp(),
+    d: handlers.deleteCellWithClipboardCopy,
+    y: () => {
+      copyCells(selectedCells.size >= 2 ? [...selectedCells] : [cellId]);
+      return true;
+    },
+    p: () => {
+      pasteAtCell(cellId, { before: false });
+      return true;
+    },
+    "shift+p": () => {
+      pasteAtCell(cellId, { before: true });
+      return true;
+    },
+    u: () => {
+      handlers.undoDeleteCell();
+      return true;
+    },
     i: handlers.focusEditorInInsertMode,
     o: () => openNewCell(false),
     "shift+o": () => openNewCell(true),

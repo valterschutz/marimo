@@ -380,6 +380,21 @@ export function useCellNavigationProps(
         }
       }
 
+      const selectedCells = getSelectedCells(store);
+
+      // Cell ids targeted by a delete, or null if any of them is running or
+      // queued and the delete must be refused.
+      const getCellIdsToDelete = (): CellId[] | null => {
+        const cellIds =
+          selectedCells.size >= 2 ? [...selectedCells] : [cellId];
+        const notebook = store.get(notebookAtom);
+        const hasRunningCell = cellIds.some((id) => {
+          const { status } = notebook.cellRuntime[id];
+          return status === "running" || status === "queued";
+        });
+        return hasRunningCell ? null : cellIds;
+      };
+
       // Shortcuts
       const shortcuts = {
         // Cell actions
@@ -591,17 +606,8 @@ export function useCellNavigationProps(
             return false;
           }
 
-          const cellIds =
-            selectedCells.size >= 2 ? [...selectedCells] : [cellId];
-
-          // Cannot delete running cells
-          const notebook = store.get(notebookAtom);
-          const hasRunningCell = cellIds.some((id) => {
-            const { status } = notebook.cellRuntime[id];
-            return status === "running" || status === "queued";
-          });
-
-          if (hasRunningCell) {
+          const cellIds = getCellIdsToDelete();
+          if (!cellIds) {
             return false;
           }
 
@@ -620,14 +626,25 @@ export function useCellNavigationProps(
         Record<HotkeyAction, HotkeyHandler["handle"] | HotkeyHandler>
       >;
 
-      const selectedCells = getSelectedCells(store);
-
       // Keymaps for the current preset's command mode, if any.
       const commandModeTable = getCommandModeKeySequenceTable(keymapPreset, {
         focus: keymaps,
         cellId,
         selectedCells,
         deleteCell: () => shortcuts["cell.delete"](),
+        deleteCellWithClipboardCopy: () => {
+          // Helix's `d` deletes immediately; destructive delete is implied
+          // by choosing the preset, so this skips the pending-delete flow.
+          const cellIds = getCellIdsToDelete();
+          if (!cellIds) {
+            return false;
+          }
+          copyCells(cellIds);
+          deleteCells({ cellIds });
+          return true;
+        },
+        moveCellUp: () => shortcuts["cell.moveUp"].handle(cellId),
+        moveCellDown: () => shortcuts["cell.moveDown"].handle(cellId),
         copyCells,
         pasteAtCell,
         createNewCell: actions.createNewCell,

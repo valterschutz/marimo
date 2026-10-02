@@ -105,6 +105,9 @@ const mockUseRunCells = vi.mocked(
 const mockUseCellClipboard = vi.mocked(
   await import("../clipboard"),
 ).useCellClipboard;
+const mockUseDeleteManyCellsCallback = vi.mocked(
+  await import("../../cell/useDeleteCell"),
+).useDeleteManyCellsCallback;
 
 afterAll(() => {
   vi.resetAllMocks();
@@ -136,6 +139,7 @@ const mockRunCell = vi.fn();
 const mockCopyCell = vi.fn();
 const mockCutCell = vi.fn().mockResolvedValue(undefined);
 const mockPasteCell = vi.fn();
+const mockDeleteCells = vi.fn();
 
 const mockCellActions = MockNotebook.cellActions({
   focusCell: vi.fn(),
@@ -192,6 +196,7 @@ describe("useCellNavigationProps", () => {
       pasteAtCell: mockPasteCell,
       clearPendingCut: vi.fn(),
     });
+    mockUseDeleteManyCellsCallback.mockReturnValue(mockDeleteCells);
 
     // Setup default config in store
     store.set(userConfigAtom, {
@@ -896,6 +901,118 @@ describe("useCellNavigationProps", () => {
       pressKeys(mockCellId, [{ key: "Enter", ctrlKey: true }]);
 
       expect(mockRunCell).toHaveBeenCalledWith([mockCellId]);
+    });
+
+    it("should move the cell down when 'J' is pressed", () => {
+      pressKeys(cellId2, [{ key: "J", shiftKey: true }]);
+
+      expect(mockCellActions.moveCell).toHaveBeenCalledExactlyOnceWith({
+        cellId: cellId2,
+        before: false,
+      });
+    });
+
+    it("should move the cell up when 'K' is pressed", () => {
+      pressKeys(cellId2, [{ key: "K", shiftKey: true }]);
+
+      expect(mockCellActions.moveCell).toHaveBeenCalledExactlyOnceWith({
+        cellId: cellId2,
+        before: true,
+      });
+    });
+
+    it.each(["J", "K"] as const)(
+      "should do nothing for '%s' when more than one cell is selected",
+      (key) => {
+        const selectionActions = setupSelection();
+        selectionActions.select({ cellId: cellId1 });
+        selectionActions.extend({
+          cellId: cellId2,
+          allCellIds: store.get(notebookAtom).cellIds,
+        });
+
+        pressKeys(cellId2, [{ key, shiftKey: true }]);
+
+        expect(mockCellActions.moveCell).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should copy the focused cell to the clipboard and delete it when 'd' is pressed", () => {
+      const [mockEvent] = pressKeys(mockCellId, [{ key: "d" }]);
+
+      expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([mockCellId]);
+      expect(mockDeleteCells).toHaveBeenCalledExactlyOnceWith({
+        cellIds: [mockCellId],
+      });
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should copy and delete the whole selection when 'd' is pressed", () => {
+      const selectionActions = setupSelection();
+      selectionActions.select({ cellId: cellId1 });
+      selectionActions.extend({
+        cellId: cellId2,
+        allCellIds: store.get(notebookAtom).cellIds,
+      });
+
+      pressKeys(cellId1, [{ key: "d" }]);
+
+      expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([
+        cellId1,
+        cellId2,
+      ]);
+      expect(mockDeleteCells).toHaveBeenCalledExactlyOnceWith({
+        cellIds: [cellId1, cellId2],
+      });
+    });
+
+    it("should neither copy nor delete a running or queued cell when 'd' is pressed", () => {
+      const notebookState = store.get(notebookAtom);
+      store.set(notebookAtom, {
+        ...notebookState,
+        cellRuntime: {
+          ...notebookState.cellRuntime,
+          [mockCellId]: {
+            ...notebookState.cellRuntime[mockCellId],
+            status: "running",
+          },
+        },
+      });
+
+      const [mockEvent] = pressKeys(mockCellId, [{ key: "d" }]);
+
+      expect(mockCopyCell).not.toHaveBeenCalled();
+      expect(mockDeleteCells).not.toHaveBeenCalled();
+      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("should copy the focused cell without deleting when 'y' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "y" }]);
+
+      expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([mockCellId]);
+      expect(mockDeleteCells).not.toHaveBeenCalled();
+    });
+
+    it("should paste after the focused cell when 'p' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "p" }]);
+
+      expect(mockPasteCell).toHaveBeenCalledExactlyOnceWith(mockCellId, {
+        before: false,
+      });
+    });
+
+    it("should paste before the focused cell when 'P' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "P", shiftKey: true }]);
+
+      expect(mockPasteCell).toHaveBeenCalledExactlyOnceWith(mockCellId, {
+        before: true,
+      });
+    });
+
+    it("should restore the most recently deleted cell when 'u' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "u" }]);
+
+      expect(mockCellActions.undoDeleteCell).toHaveBeenCalledOnce();
     });
   });
 
