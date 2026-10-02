@@ -1,11 +1,39 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import type { InlineCompletionList } from "vscode-languageserver-protocol";
-import { exportedForTesting } from "../extension";
+import { copilotBundle, exportedForTesting } from "../extension";
 
 const { getCopilotRequest, getSuggestion } = exportedForTesting;
+
+describe("copilotBundle", () => {
+  it("does not bind Escape without an inline completion provider", () => {
+    const view = new EditorView({
+      doc: "x = 1",
+      extensions: [
+        copilotBundle({
+          copilot: false,
+          activate_on_typing: false,
+          signature_hint_on_typing: false,
+          codeium_api_key: null,
+        }),
+      ],
+    });
+
+    const bindings = view.state.facet(keymap).flat();
+    expect(bindings.some((binding) => binding.key === "Escape")).toBe(false);
+    // Without the guard this threw because the inline completion field is
+    // absent, aborting every other Escape binding.
+    expect(() =>
+      runScopeHandlers(
+        view,
+        new KeyboardEvent("keydown", { key: "Escape" }),
+        "editor",
+      ),
+    ).not.toThrow();
+  });
+});
 
 const OTHER_CODE = "import numpy as np\nimport pandas as pd";
 

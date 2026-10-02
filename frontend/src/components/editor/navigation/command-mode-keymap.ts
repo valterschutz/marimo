@@ -93,6 +93,7 @@ export function getCommandModeKeySequenceTable(
     case "vim":
       return getVimCommandModeTable(handlers);
     case "default":
+    case "helix":
       return undefined;
     default:
       logNever(preset);

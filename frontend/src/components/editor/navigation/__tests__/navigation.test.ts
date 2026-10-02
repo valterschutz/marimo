@@ -78,6 +78,13 @@ vi.mock("@codemirror/autocomplete", () => ({
   closeCompletion: (...args: unknown[]) => mockCloseCompletion(...args),
 }));
 
+// Mock the Helix normal-mode reader
+const mockIsInHelixNormalMode = vi.fn();
+vi.mock("@/core/codemirror/keymaps/helix", () => ({
+  isInHelixNormalMode: (...args: unknown[]) =>
+    mockIsInHelixNormalMode(...args),
+}));
+
 // Get mocked functions
 const mockUseCellActions = vi.mocked(
   await import("@/core/cells/cells"),
@@ -1981,6 +1988,128 @@ describe("useCellEditorNavigationProps", () => {
         expect(focusCell).toHaveBeenCalledWith(mockCellId);
         expect(mockEvent.continuePropagation).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("helix mode", () => {
+    const helixEditorView = ({ from = 0, to = 0 } = {}) => {
+      const contentDOM = document.createElement("div");
+      const view = {
+        current: {
+          contentDOM,
+          state: {
+            selection: {
+              main: { from, to, empty: from === to },
+            },
+            field: vi.fn().mockReturnValue(false),
+          },
+          dispatch: vi.fn(),
+        } as unknown as EditorView,
+      };
+      return { view, contentDOM };
+    };
+
+    beforeEach(() => {
+      store.set(configOverridesAtom, {
+        keymap: {
+          preset: "helix",
+        },
+      });
+    });
+
+    it("should exit to command mode when Escape is pressed in normal mode", () => {
+      mockIsInHelixNormalMode.mockReturnValue(true);
+      const { view, contentDOM } = helixEditorView();
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, view),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({
+        key: "Escape",
+        target: contentDOM,
+      });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockIsInHelixNormalMode).toHaveBeenCalledWith(view.current);
+      expect(focusCell).toHaveBeenCalledWith(mockCellId);
+    });
+
+    it("should not exit to command mode when Escape is pressed in insert mode", () => {
+      mockIsInHelixNormalMode.mockReturnValue(false);
+      const { view, contentDOM } = helixEditorView();
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, view),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({
+        key: "Escape",
+        target: contentDOM,
+      });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(focusCell).not.toHaveBeenCalled();
+    });
+
+    it("should exit to command mode on a single Escape even with a non-collapsed selection", () => {
+      mockIsInHelixNormalMode.mockReturnValue(true);
+      // Would collapse the selection for the other presets.
+      mockSimplifySelection.mockReturnValue(true);
+      const { view, contentDOM } = helixEditorView({ from: 2, to: 5 });
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, view),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({
+        key: "Escape",
+        target: contentDOM,
+      });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockSimplifySelection).not.toHaveBeenCalled();
+      expect(focusCell).toHaveBeenCalledWith(mockCellId);
+    });
+
+    it("should ignore Escape pressed in the engine's command prompt", () => {
+      mockIsInHelixNormalMode.mockReturnValue(true);
+      const { view } = helixEditorView();
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, view),
+      );
+
+      // The prompt is rendered outside the editor's content DOM.
+      const mockEvent = Mocks.keyboardEvent({
+        key: "Escape",
+        target: document.createElement("input"),
+      });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(focusCell).not.toHaveBeenCalled();
+    });
+
+    it("should exit to command mode immediately when there is no editor", () => {
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, { current: null }),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({ key: "Escape" });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(focusCell).toHaveBeenCalledWith(mockCellId);
     });
   });
 });

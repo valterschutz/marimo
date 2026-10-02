@@ -5539,7 +5539,7 @@ export interface components {
      *
      *         **Keys.**
      *
-     *         - `preset`: one of `"default"` or `"vim"`
+     *         - `preset`: one of `"default"`, `"vim"` or `"helix"`
      *         - `overrides`: a dict of keymap actions to their keymap override
      *         - `vimrc`: path to a vimrc file to load keymaps from
      *         - `destructive_delete`: if `True`, allows deleting cells with content.
@@ -5550,7 +5550,7 @@ export interface components {
         [key: string]: string;
       };
       /** @enum {unknown} */
-      preset: "default" | "vim";
+      preset: "default" | "helix" | "vim";
       vimrc?: string | null;
     };
     /** KnownUnions */

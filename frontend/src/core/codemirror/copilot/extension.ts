@@ -163,23 +163,32 @@ export const copilotBundle = (config: CompletionConfig): Extension => {
     );
   }
 
+  if (config.copilot === "github" || config.copilot === "custom") {
+    // rejectInlineCompletion reads the inline completion state field, which
+    // only exists when one of the inline completion providers above is
+    // installed; without it the command throws and aborts every other
+    // Escape binding.
+    extensions.push(
+      Prec.highest(
+        keymap.of([
+          {
+            key: "Escape",
+            run: (view: EditorView) => {
+              const status = rejectInlineCompletion(view);
+              // When in vim mode, we need to propagate escape to exit insert mode.
+              if (isInVimMode(view)) {
+                return false;
+              }
+              return status;
+            },
+          },
+        ]),
+      ),
+    );
+  }
+
   return [
     ...extensions,
-    Prec.highest(
-      keymap.of([
-        {
-          key: "Escape",
-          run: (view: EditorView) => {
-            const status = rejectInlineCompletion(view);
-            // When in vim mode, we need to propagate escape to exit insert mode.
-            if (isInVimMode(view)) {
-              return false;
-            }
-            return status;
-          },
-        },
-      ]),
-    ),
     // place in own compartment so it doesn't interfere with other LSP
     copilotCompartment.of(copilotServer()),
   ];

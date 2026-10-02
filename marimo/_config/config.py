@@ -82,13 +82,13 @@ class KeymapConfig(TypedDict):
 
     **Keys.**
 
-    - `preset`: one of `"default"` or `"vim"`
+    - `preset`: one of `"default"`, `"vim"` or `"helix"`
     - `overrides`: a dict of keymap actions to their keymap override
     - `vimrc`: path to a vimrc file to load keymaps from
     - `destructive_delete`: if `True`, allows deleting cells with content.
     """
 
-    preset: Literal["default", "vim"]
+    preset: Literal["default", "vim", "helix"]
     overrides: NotRequired[dict[str, str]]
     vimrc: NotRequired[str | None]
     destructive_delete: NotRequired[bool]

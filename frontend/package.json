@@ -97,6 +97,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "codemirror-helix": "0.6.0",
     "compassql": "^0.21.2",
     "cssnano": "^7.1.2",
     "date-fns": "^4.1.0",

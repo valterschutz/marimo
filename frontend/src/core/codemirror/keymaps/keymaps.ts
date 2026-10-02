@@ -29,9 +29,10 @@ import type { HotkeyProvider } from "@/core/hotkeys/hotkeys";
 import { logNever } from "@/utils/assertNever";
 import { once } from "@/utils/once";
 import { cellActionsState } from "../cells/state";
+import { helixExtension, onlyInHelixInsertMode } from "./helix";
 import { vimKeymapExtension } from "./vim";
 
-export const KEYMAP_PRESETS = ["default", "vim"] as const;
+export const KEYMAP_PRESETS = ["default", "vim", "helix"] as const;
 
 export function keymapBundle(
   config: KeymapConfig,
@@ -82,6 +83,16 @@ export function keymapBundle(
         vim({ status: false }),
         // Custom vim keymaps for cell navigation
         Prec.high(vimKeymapExtension()),
+      ];
+    case "helix":
+      return [
+        // Configured hotkeys win over the engine's bindings
+        keymap.of(overrideKeymap(hotkeys)),
+        helixExtension(),
+        // Keys the engine leaves unbound in insert mode fall back to marimo's
+        // defaults. Unlike vim, there is no boundary-jump extension: j and k
+        // on the last and first line stay inside the editor.
+        keymap.of(onlyInHelixInsertMode(defaultKeymap())),
       ];
     default:
       logNever(config.preset);

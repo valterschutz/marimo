@@ -1,6 +1,10 @@
 # Copyright 2026 Marimo. All rights reserved.
 from __future__ import annotations
 
+from typing import Literal
+
+import pytest
+
 from marimo._config.config import (
     DEFAULT_CONFIG,
     MarimoConfig,
@@ -26,9 +30,10 @@ def test_allow_provider_config_can_be_disabled() -> None:
     assert merged["ai"]["allow_provider_config"] is False
 
 
-def test_configure_partial_keymap() -> None:
+@pytest.mark.parametrize("preset", ["vim", "helix"])
+def test_configure_partial_keymap(preset: Literal["vim", "helix"]) -> None:
     assert_config(
-        PartialMarimoConfig(keymap={"preset": "vim", "overrides": {}})
+        PartialMarimoConfig(keymap={"preset": preset, "overrides": {}})
     )
 
 

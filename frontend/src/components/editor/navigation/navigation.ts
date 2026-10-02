@@ -27,6 +27,7 @@ import {
   closeSignatureHint,
   signatureHintField,
 } from "@/core/codemirror/completion/signature-hint";
+import { isInHelixNormalMode } from "@/core/codemirror/keymaps/helix";
 import { LanguageAdapters } from "@/core/codemirror/language/LanguageAdapters";
 import {
   hotkeysAtom,
@@ -732,12 +733,37 @@ export function useCellEditorNavigationProps(
     exitToCommandMode();
   };
 
+  const handleHelixEscape = (target: EventTarget) => {
+    const view = editorView.current;
+    if (!view) {
+      exitToCommandMode();
+      return;
+    }
+
+    // The engine's `:` and `/` prompts live outside the content DOM and close
+    // themselves on Escape.
+    if (!(target instanceof Node && view.contentDOM.contains(target))) {
+      return;
+    }
+
+    // Escape in insert mode belongs to the engine (back to normal mode). In
+    // normal mode a single Escape leaves, even with an active selection, so
+    // the selection-simplifying step of the other presets is skipped.
+    if (isInHelixNormalMode(view)) {
+      exitToCommandMode();
+    }
+  };
+
   const { keyboardProps } = useKeyboard({
     onKeyDown: (evt) => {
       if (keymapPreset === "vim") {
         // For vim mode, use configurable shortcut
         if (vimCommandModeShortcut(evt)) {
           handleEscape();
+        }
+      } else if (keymapPreset === "helix") {
+        if (evt.key === "Escape") {
+          handleHelixEscape(evt.target);
         }
       } else {
         // For non-vim mode, regular Escape exits to command mode

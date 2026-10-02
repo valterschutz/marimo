@@ -265,6 +265,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.10))(@types/react@19.2.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      codemirror-helix:
+        specifier: 0.6.0
+        version: 0.6.0(@codemirror/commands@6.11.0)(@codemirror/language@6.12.4)(@codemirror/search@6.7.1)(@codemirror/state@6.7.1)(@codemirror/view@6.43.9)
       compassql:
         specifier: ^0.21.2
         version: 0.21.2(vega@6.2.0)
@@ -5402,6 +5405,15 @@ packages:
   code-point-at@1.1.0:
     resolution: {integrity: sha512-RpAVKQA5T63xEj6/giIbUEtZwJ4UFIc3ZtvEkiaUERylqe8xb5IvqcgOurZLahv93CLKfxcw5YI+DZcUBRyLXA==}
     engines: {node: '>=0.10.0'}
+
+  codemirror-helix@0.6.0:
+    resolution: {integrity: sha512-0k0n7o+rsCW4wvbKZCcBhFRuh2v0PiU13ZjsDWlFzkZYOW62peY2jJ6mZIStP2Tk9EsI1fZoKXzUQunZpi2oDw==}
+    peerDependencies:
+      '@codemirror/commands': ^6.0.0
+      '@codemirror/language': ^6.0.0
+      '@codemirror/search': ^6.2.0
+      '@codemirror/state': ^6.6.0
+      '@codemirror/view': ^6.22.0
 
   codemirror-lang-mermaid@0.5.0:
     resolution: {integrity: sha512-Taw/2gPCyNArQJCxIP/HSUif+3zrvD+6Ugt7KJZ2dUKou/8r3ZhcfG8krNTZfV2iu8AuGnymKuo7bLPFyqsh/A==}
@@ -15474,6 +15486,14 @@ snapshots:
       - '@types/react-dom'
 
   code-point-at@1.1.0: {}
+
+  codemirror-helix@0.6.0(@codemirror/commands@6.11.0)(@codemirror/language@6.12.4)(@codemirror/search@6.7.1)(@codemirror/state@6.7.1)(@codemirror/view@6.43.9):
+    dependencies:
+      '@codemirror/commands': 6.11.0
+      '@codemirror/language': 6.12.4
+      '@codemirror/search': 6.7.1
+      '@codemirror/state': 6.7.1
+      '@codemirror/view': 6.43.9
 
   codemirror-lang-mermaid@0.5.0:
     dependencies:

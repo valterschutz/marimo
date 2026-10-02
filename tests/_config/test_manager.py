@@ -214,6 +214,20 @@ def test_save_config_with_none_does_not_raise(tmp_path: Path) -> None:
     assert "be terse" in contents
 
 
+def test_save_config_round_trips_helix_keymap(tmp_path: Path) -> None:
+    config_path = tmp_path / "marimo.toml"
+    manager = UserConfigManager()
+    manager.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
+    manager.save_config(
+        PartialMarimoConfig(keymap={"preset": "helix", "overrides": {}})
+    )
+    assert 'preset = "helix"' in config_path.read_text()
+
+    reloaded = UserConfigManager()
+    reloaded.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
+    assert reloaded.get_config()["keymap"]["preset"] == "helix"
+
+
 def test_drop_none_values_strips_nested_none() -> None:
     from marimo._config.manager import _drop_none_values
 
