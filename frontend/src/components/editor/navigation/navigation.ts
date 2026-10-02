@@ -27,7 +27,10 @@ import {
   closeSignatureHint,
   signatureHintField,
 } from "@/core/codemirror/completion/signature-hint";
-import { isInHelixNormalMode } from "@/core/codemirror/keymaps/helix";
+import {
+  isInHelixNormalMode,
+  setHelixMode,
+} from "@/core/codemirror/keymaps/helix";
 import { LanguageAdapters } from "@/core/codemirror/language/LanguageAdapters";
 import {
   hotkeysAtom,
@@ -240,6 +243,16 @@ export function useCellNavigationProps(
         return;
       }
 
+      const focusEditor = (helixMode: "normal" | "insert") => {
+        temporarilyShownCodeActions.add(cellId);
+        focusCellEditor(store, cellId);
+        if (keymapPreset === "helix" && editorView.current) {
+          setHelixMode(editorView.current, helixMode);
+        }
+        selectionActions.clear();
+        return true;
+      };
+
       const keymaps = {
         // Move to the top of the notebook.
         "Mod+ArrowUp": () => {
@@ -344,14 +357,13 @@ export function useCellNavigationProps(
           return false;
         },
         // Enter will focus the cell editor.
-        Enter: () => {
-          temporarilyShownCodeActions.add(cellId);
-          focusCellEditor(store, cellId);
-          selectionActions.clear();
-          return true;
-        },
+        Enter: () => focusEditor("normal"),
         // Command mode: Saving
         s: () => {
+          // Helix selects with `s`; saving stays on the global save hotkey.
+          if (keymapPreset === "helix") {
+            return false;
+          }
           saveOrNameNotebook();
           return true;
         },
@@ -620,6 +632,7 @@ export function useCellNavigationProps(
         pasteAtCell,
         createNewCell: actions.createNewCell,
         undoDeleteCell: actions.undoDeleteCell,
+        focusEditorInInsertMode: () => focusEditor("insert"),
       });
       if (
         commandModeTable &&

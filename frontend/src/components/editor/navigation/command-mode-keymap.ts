@@ -1,8 +1,12 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+import type { EditorView } from "@codemirror/view";
+import { ensureCellEditorView } from "@/core/cells/cells";
+import { CellId } from "@/core/cells/ids";
+import { setHelixMode } from "@/core/codemirror/keymaps/helix";
 import type { KeymapConfig } from "@/core/config/config-schema";
 import { logNever } from "@/utils/assertNever";
-import type { CellId } from "@/core/cells/ids";
+import { retryWithTimeout } from "@/utils/timeout";
 
 /**
  * Handlers shared by the focus/selection keymap, reused by preset-specific
@@ -31,8 +35,11 @@ export interface CommandModeKeymapHandlers {
     cellId: CellId;
     before: boolean;
     autoFocus: boolean;
+    newCellId?: CellId;
   }) => void;
   undoDeleteCell: () => void;
+  /** Like `focus.Enter`, but opens a Helix editor in insert mode. */
+  focusEditorInInsertMode: () => boolean;
 }
 
 /** A table dispatched through {@link handleVimKeybinding}. */
@@ -81,6 +88,45 @@ function getVimCommandModeTable(
   };
 }
 
+function getHelixCommandModeTable(
+  handlers: CommandModeKeymapHandlers,
+): CommandModeKeySequenceTable {
+  const { focus, cellId } = handlers;
+  // Autofocus keeps cell-level focus when a cell is created from command mode,
+  // so open the new cell's editor in insert mode, like Helix's `o`/`O`. The
+  // cell renders, then builds and attaches its editor, over the next frames.
+  const openNewCell = (before: boolean) => {
+    const newCellId = CellId.create();
+    handlers.createNewCell({ cellId, before, autoFocus: true, newCellId });
+    let view: EditorView | null | undefined;
+    retryWithTimeout(
+      () => {
+        if (!view) {
+          view = ensureCellEditorView(newCellId);
+          if (view) {
+            setHelixMode(view, "insert");
+          }
+        }
+        view?.focus();
+        return view?.hasFocus ?? false;
+      },
+      { retries: 10, delay: 20 },
+    );
+    return true;
+  };
+  return {
+    j: focus.ArrowDown,
+    k: focus.ArrowUp,
+    h: focus.ArrowLeft,
+    l: focus.ArrowRight,
+    "g g": focus["Mod+ArrowUp"],
+    "shift+g": focus["Mod+ArrowDown"],
+    i: handlers.focusEditorInInsertMode,
+    o: () => openNewCell(false),
+    "shift+o": () => openNewCell(true),
+  };
+}
+
 /**
  * Returns the preset's command-mode key-sequence table, or undefined for
  * presets (such as `default`) that don't have one.
@@ -92,8 +138,9 @@ export function getCommandModeKeySequenceTable(
   switch (preset) {
     case "vim":
       return getVimCommandModeTable(handlers);
-    case "default":
     case "helix":
+      return getHelixCommandModeTable(handlers);
+    case "default":
       return undefined;
     default:
       logNever(preset);

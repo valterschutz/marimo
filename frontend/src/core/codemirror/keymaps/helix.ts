@@ -1,7 +1,12 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
 import type { Extension } from "@codemirror/state";
-import { type Command, EditorView, type KeyBinding } from "@codemirror/view";
+import {
+  type Command,
+  EditorView,
+  type KeyBinding,
+  runScopeHandlers,
+} from "@codemirror/view";
 import { commands, helix, type TypableCommand } from "codemirror-helix";
 import { focusCell, raf2 } from "@/components/editor/navigation/focus-utils";
 import { cellActionsState, cellIdState } from "../cells/state";
@@ -17,6 +22,35 @@ import { cellActionsState, cellIdState } from "../cells/state";
 export function isInHelixNormalMode(view: EditorView): boolean {
   const mode = view.dom.querySelector(".cm-hx-status-panel > span");
   return mode?.textContent !== "INS";
+}
+
+/**
+ * Put the Helix engine in normal or insert mode.
+ *
+ * The engine keeps its mode while the editor is unfocused, so this is used to
+ * choose the mode when an editor is opened from cell command mode.
+ * `codemirror-helix` exports no insert-mode effect, and its `resetMode` effect
+ * skips committing a pending insert to the engine's undo history, so this runs
+ * the engine's own Escape and `i` bindings instead.
+ */
+export function setHelixMode(
+  view: EditorView,
+  mode: "normal" | "insert",
+): void {
+  // Escape also leaves select mode and drops pending prefixes such as `g`. A
+  // second press is needed when the first only cancels an insert-mode prefix
+  // such as Ctrl-r.
+  runHelixKey(view, "Escape");
+  if (!isInHelixNormalMode(view)) {
+    runHelixKey(view, "Escape");
+  }
+  if (mode === "insert") {
+    runHelixKey(view, "i");
+  }
+}
+
+function runHelixKey(view: EditorView, key: string): void {
+  runScopeHandlers(view, new KeyboardEvent("keydown", { key }), "editor");
 }
 
 /**

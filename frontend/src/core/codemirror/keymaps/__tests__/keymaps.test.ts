@@ -20,7 +20,7 @@ import {
   cellIdState,
   type CodemirrorCellActions,
 } from "../../cells/state";
-import { isInHelixNormalMode } from "../helix";
+import { isInHelixNormalMode, setHelixMode } from "../helix";
 import { keymapBundle, visibleForTesting } from "../keymaps";
 
 vi.mock("@/components/editor/navigation/focus-utils", async (importOriginal) => ({
@@ -146,6 +146,17 @@ describe("helix keymap bundle", () => {
 
     press(view, "Escape");
     expect(isInHelixNormalMode(view)).toBe(true);
+  });
+
+  it("switches modes with setHelixMode alongside marimo's keymaps", () => {
+    const view = createView("a");
+
+    setHelixMode(view, "insert");
+    expect(isInHelixNormalMode(view)).toBe(false);
+
+    setHelixMode(view, "normal");
+    expect(isInHelixNormalMode(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("a");
   });
 
   it("includes marimo's override keymap", () => {

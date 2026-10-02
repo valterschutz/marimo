@@ -33,6 +33,7 @@ import {
 vi.mock("@/core/cells/cells", async (importOriginal) => ({
   ...(await importOriginal()),
   useCellActions: vi.fn(),
+  ensureCellEditorView: vi.fn(),
 }));
 
 vi.mock("@/core/cells/focus", async (importOriginal) => ({
@@ -78,17 +79,22 @@ vi.mock("@codemirror/autocomplete", () => ({
   closeCompletion: (...args: unknown[]) => mockCloseCompletion(...args),
 }));
 
-// Mock the Helix normal-mode reader
+// Mock the Helix mode reader and setter
 const mockIsInHelixNormalMode = vi.fn();
+const mockSetHelixMode = vi.fn();
 vi.mock("@/core/codemirror/keymaps/helix", () => ({
   isInHelixNormalMode: (...args: unknown[]) =>
     mockIsInHelixNormalMode(...args),
+  setHelixMode: (...args: unknown[]) => mockSetHelixMode(...args),
 }));
 
 // Get mocked functions
 const mockUseCellActions = vi.mocked(
   await import("@/core/cells/cells"),
 ).useCellActions;
+const mockEnsureCellEditorView = vi.mocked(
+  await import("@/core/cells/cells"),
+).ensureCellEditorView;
 
 const mockUseSaveNotebook = vi.mocked(
   await import("@/core/saving/save-component"),
@@ -691,6 +697,205 @@ describe("useCellNavigationProps", () => {
         mockCellId,
       );
       expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+  });
+
+  describe("helix mode navigation", () => {
+    beforeEach(() => {
+      store.set(configOverridesAtom, {
+        keymap: {
+          preset: "helix",
+        },
+      });
+    });
+
+    const pressKeys = (
+      cellId: typeof mockCellId,
+      events: Array<Partial<React.KeyboardEvent>>,
+      opts: typeof options = options,
+    ) => {
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(cellId, opts),
+      );
+      // Key sequences are tracked per event target.
+      const target = document.createElement("div");
+      const mockEvents = events.map((props) =>
+        Mocks.keyboardEvent({ target, ...props }),
+      );
+      act(() => {
+        for (const mockEvent of mockEvents) {
+          result.current.onKeyDown?.(mockEvent);
+        }
+      });
+      return mockEvents;
+    };
+
+    it.each([
+      ["j", "after"],
+      ["k", "before"],
+    ] as const)("should move focus when '%s' is pressed", (key, where) => {
+      const [mockEvent] = pressKeys(mockCellId, [{ key }]);
+
+      expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        where,
+      });
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it.each([
+      ["h", cellId2, cellId1],
+      ["l", cellId1, cellId2],
+    ] as const)(
+      "should move focus across columns when '%s' is pressed",
+      (key, fromCellId, toCellId) => {
+        const notebookState = store.get(notebookAtom);
+        store.set(notebookAtom, {
+          ...notebookState,
+          cellIds: MultiColumn.from([[cellId1, cellId3], [cellId2]]),
+        });
+
+        pressKeys(fromCellId, [{ key }], { ...options, canMoveX: true });
+
+        expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+          cellId: toCellId,
+          where: "exact",
+        });
+      },
+    );
+
+    it("should jump to the first cell when 'g g' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "g" }, { key: "g" }]);
+
+      expect(mockCellActions.focusTopCell).toHaveBeenCalled();
+    });
+
+    it("should jump to the last cell when 'G' is pressed", () => {
+      pressKeys(mockCellId, [{ key: "G", shiftKey: true }]);
+
+      expect(mockCellActions.focusBottomCell).toHaveBeenCalled();
+    });
+
+    it("should open the editor in normal mode when Enter is pressed", () => {
+      const [mockEvent] = pressKeys(
+        mockCellId,
+        [{ key: "Enter" }],
+        optionsWithMockEditor,
+      );
+
+      expect(focusCellEditor).toHaveBeenCalledWith(
+        expect.anything(),
+        mockCellId,
+      );
+      expect(mockSetHelixMode).toHaveBeenCalledExactlyOnceWith(
+        mockEditorView,
+        "normal",
+      );
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should open the editor in insert mode when 'i' is pressed", () => {
+      const [mockEvent] = pressKeys(
+        mockCellId,
+        [{ key: "i" }],
+        optionsWithMockEditor,
+      );
+
+      expect(focusCellEditor).toHaveBeenCalledWith(
+        expect.anything(),
+        mockCellId,
+      );
+      expect(mockSetHelixMode).toHaveBeenCalledExactlyOnceWith(
+        mockEditorView,
+        "insert",
+      );
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it.each([
+      ["o", false, false],
+      ["O", true, true],
+    ] as const)(
+      "should create a cell and open its editor in insert mode when '%s' is pressed",
+      (key, shiftKey, before) => {
+        const newEditorView = {
+          focus: vi.fn(),
+          hasFocus: true,
+        } as unknown as EditorView;
+        mockEnsureCellEditorView.mockReturnValue(newEditorView);
+
+        const [mockEvent] = pressKeys(mockCellId, [{ key, shiftKey }]);
+
+        expect(mockCellActions.createNewCell).toHaveBeenCalledExactlyOnceWith({
+          cellId: mockCellId,
+          before,
+          autoFocus: true,
+          newCellId: expect.any(String),
+        });
+        const [{ newCellId }] = vi.mocked(mockCellActions.createNewCell).mock
+          .calls[0];
+        expect(newCellId).not.toBe(mockCellId);
+        expect(mockEnsureCellEditorView).toHaveBeenCalledWith(newCellId);
+        expect(newEditorView.focus).toHaveBeenCalled();
+        expect(mockSetHelixMode).toHaveBeenCalledExactlyOnceWith(
+          newEditorView,
+          "insert",
+        );
+        expect(mockEvent.preventDefault).toHaveBeenCalled();
+      },
+    );
+
+    it("should open the new cell's editor once it is mounted", () => {
+      vi.useFakeTimers();
+      try {
+        const newEditorView = {
+          focus: vi.fn(),
+          hasFocus: false,
+        } as unknown as EditorView;
+        mockEnsureCellEditorView.mockReturnValue(undefined);
+
+        pressKeys(mockCellId, [{ key: "o" }]);
+        expect(mockSetHelixMode).not.toHaveBeenCalled();
+
+        // The editor is built but not yet attached, so focus does not stick.
+        mockEnsureCellEditorView.mockReturnValue(newEditorView);
+        vi.advanceTimersByTime(20);
+        expect(mockSetHelixMode).toHaveBeenCalledExactlyOnceWith(
+          newEditorView,
+          "insert",
+        );
+
+        Object.assign(newEditorView, { hasFocus: true });
+        vi.advanceTimersByTime(20);
+        const focusCalls = vi.mocked(newEditorView.focus).mock.calls.length;
+        vi.advanceTimersByTime(1000);
+        expect(newEditorView.focus).toHaveBeenCalledTimes(focusCalls);
+        expect(mockSetHelixMode).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should not save when 's' is pressed", () => {
+      const [mockEvent] = pressKeys(mockCellId, [{ key: "s" }]);
+
+      expect(mockSaveOrNameNotebook).not.toHaveBeenCalled();
+      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("should keep arrow key navigation", () => {
+      pressKeys(mockCellId, [{ key: "ArrowDown" }]);
+
+      expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        where: "after",
+      });
+    });
+
+    it("should keep modifier shortcuts", () => {
+      pressKeys(mockCellId, [{ key: "Enter", ctrlKey: true }]);
+
+      expect(mockRunCell).toHaveBeenCalledWith([mockCellId]);
     });
   });
 
