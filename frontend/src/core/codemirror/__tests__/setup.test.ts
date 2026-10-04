@@ -259,6 +259,39 @@ describe("inline AI edit trigger", () => {
   );
 });
 
+describe("selection match highlighting", () => {
+  function matchCount(preset: KeymapConfig["preset"]) {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "value = value + value",
+        extensions: setup({ keymapConfig: { preset, overrides: {} } }),
+      }),
+      parent: document.body,
+    });
+    try {
+      view.focus();
+      view.dispatch({
+        selection: EditorSelection.range(0, 5),
+        userEvent: "select",
+      });
+      return view.contentDOM.querySelectorAll(".cm-selectionMatch").length;
+    } finally {
+      view.destroy();
+    }
+  }
+
+  test("helix does not highlight matches of the selection", () => {
+    expect(matchCount("helix")).toBe(0);
+  });
+
+  test.each(["default", "vim"] as const)(
+    "%s highlights matches of the selection",
+    (preset) => {
+      expect(matchCount(preset)).toBe(2);
+    },
+  );
+});
+
 test("placeholder adds another extension", () => {
   const opts = getOpts();
   const withAI = new PythonLanguageAdapter()

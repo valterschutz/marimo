@@ -233,6 +233,7 @@ export const basicBundle = (opts: CodeMirrorSetupOpts): Extension[] => {
     lspConfig,
     diagnosticsConfig,
     tooltipParentSelector,
+    keymapConfig,
   } = opts;
   const placeholderType = getPlaceholderType(opts);
   const autoClosePairs = completionConfig.auto_close_pairs !== false;
@@ -284,7 +285,11 @@ export const basicBundle = (opts: CodeMirrorSetupOpts): Extension[] => {
     ///// Editing
     historyCompartment.of(history()),
     EditorState.allowMultipleSelections.of(true),
-    findReplaceBundle(hotkeys),
+    findReplaceBundle(hotkeys, {
+      // Every helix normal-mode cursor is a one-character selection, so every
+      // occurrence of the character under it would light up.
+      highlightMatches: keymapConfig.preset !== "helix",
+    }),
     keymap.of([
       {
         key: "Tab",

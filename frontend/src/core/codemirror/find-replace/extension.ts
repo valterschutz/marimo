@@ -13,7 +13,10 @@ import {
 } from "./search-highlight";
 import { closeFindReplacePanel, openFindReplacePanel } from "./state";
 
-export function findReplaceBundle(hotkeys: HotkeyProvider) {
+export function findReplaceBundle(
+  hotkeys: HotkeyProvider,
+  { highlightMatches = true }: { highlightMatches?: boolean } = {},
+) {
   return [
     keymap.of([
       {
@@ -33,7 +36,7 @@ export function findReplaceBundle(hotkeys: HotkeyProvider) {
         run: openFindReplacePanel,
       },
     ]),
-    highlightSelectionMatches(),
+    highlightMatches ? highlightSelectionMatches() : [],
     searchHighlighter,
     searchState,
     highlightTheme,
