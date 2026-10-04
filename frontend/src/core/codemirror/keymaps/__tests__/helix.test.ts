@@ -495,3 +495,125 @@ describe("helixExtension selection band", () => {
     expect(getComputedStyle(selectionLayer(view)).display).not.toBe("none");
   });
 });
+
+describe("helixExtension view mode", () => {
+  const doc = "a = 1\nb = 2\nc = 3";
+  const lineB = doc.indexOf("b");
+
+  /** Puts the block cursor on the first character of line `b`. */
+  async function createViewOnLineB() {
+    const view = await createFocusedView(doc);
+    view.dispatch({ selection: EditorSelection.single(lineB, lineB + 1) });
+    return view;
+  }
+
+  function spyOnScrollIntoView() {
+    return vi.spyOn(EditorView, "scrollIntoView");
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["z", "center"],
+    ["c", "center"],
+    ["t", "start"],
+    ["b", "end"],
+  ])("z%s aligns the cursor line to the %s", async (key, y) => {
+    const view = await createViewOnLineB();
+    const scrollIntoView = spyOnScrollIntoView();
+
+    press(view, "z");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    press(view, key);
+
+    expect(scrollIntoView).toHaveBeenCalledWith(
+      lineB,
+      expect.objectContaining({ y }),
+    );
+    expect(view.state.selection.main.from).toBe(lineB);
+  });
+
+  it("aligns in editor select mode", async () => {
+    const view = await createViewOnLineB();
+    press(view, "v");
+    const scrollIntoView = spyOnScrollIntoView();
+
+    press(view, "z");
+    press(view, "t");
+
+    expect(scrollIntoView).toHaveBeenCalledWith(
+      lineB,
+      expect.objectContaining({ y: "start" }),
+    );
+  });
+
+  it("consumes the key after z, even an unbound one", async () => {
+    const view = await createViewOnLineB();
+    const scrollIntoView = spyOnScrollIntoView();
+
+    press(view, "z");
+    press(view, "i");
+
+    expect(isInHelixNormalMode(view)).toBe(true);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    // The prefix is gone, so the next key acts normally.
+    press(view, "i");
+    expect(isInHelixNormalMode(view)).toBe(false);
+  });
+
+  it("cancels the prefix on Escape without leaving the editor", async () => {
+    const view = await createViewOnLineB();
+    press(view, "z");
+    const escape = new KeyboardEvent("keydown", { key: "Escape" });
+
+    runScopeHandlers(view, escape, "editor");
+
+    expect(escape.cancelBubble).toBe(true);
+    const scrollIntoView = spyOnScrollIntoView();
+    press(view, "z");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("drops the prefix when the editor loses focus", async () => {
+    const view = await createViewOnLineB();
+    press(view, "z");
+    await setFocus(view, false);
+    await setFocus(view, true);
+    const scrollIntoView = spyOnScrollIntoView();
+
+    press(view, "z");
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("leaves z to character arguments such as f", async () => {
+    const view = await createViewOnLineB();
+
+    press(view, "f");
+
+    // The engine reads the character from text input, so the keydown must
+    // stay unhandled.
+    expect(
+      runScopeHandlers(
+        view,
+        new KeyboardEvent("keydown", { key: "z" }),
+        "editor",
+      ),
+    ).toBe(false);
+  });
+
+  it("leaves z alone in editor insert mode", async () => {
+    const view = await createViewOnLineB();
+    setHelixMode(view, "insert");
+
+    expect(
+      runScopeHandlers(
+        view,
+        new KeyboardEvent("keydown", { key: "z" }),
+        "editor",
+      ),
+    ).toBe(false);
+  });
+});

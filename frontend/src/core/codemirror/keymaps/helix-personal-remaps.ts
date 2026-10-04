@@ -31,7 +31,7 @@ import {
   keymap,
   WidgetType,
 } from "@codemirror/view";
-import { isInHelixNormalMode } from "./helix";
+import { isIdleInHelixNormalMode } from "./helix";
 
 export function helixPersonalRemaps(): Extension {
   return [
@@ -61,20 +61,6 @@ function remapBindings(): KeyBinding[] {
       return true;
     },
   }));
-}
-
-/**
- * Normal or select mode with no pending count, prefix (`g`, `m`, space) or
- * character argument (`f`, `t`, `r`), so `fx` still finds an `x`.
- *
- * The engine shows that pending state in its command panel; see
- * `isInHelixNormalMode` for why the DOM is read.
- */
-function isIdleInHelixNormalMode(view: EditorView): boolean {
-  const pending = view.dom.querySelector(
-    ".cm-hx-command-panel-flex > span:nth-child(2)",
-  );
-  return isInHelixNormalMode(view) && !pending?.textContent;
 }
 
 function isInHelixSelectMode(view: EditorView): boolean {

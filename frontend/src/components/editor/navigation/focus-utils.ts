@@ -55,3 +55,54 @@ export function tryFocus(dom: HTMLElement) {
     Logger.warn("[CellFocusManager] element may not be focusable", dom);
   }
 }
+
+/**
+ * Helix's default `scrolloff`: lines kept between an aligned target and the
+ * edge of the window.
+ */
+export const SCROLLOFF_LINES = 5;
+
+/** Where Helix's view mode puts its target in the window. */
+export type ViewAlignment = "start" | "center" | "end";
+
+/**
+ * Scroll the notebook so the cell sits at the top, centre or bottom of the
+ * window, like Helix's view mode does with the cursor line. A cell taller
+ * than the window is put at the top instead of centred, so the start of its
+ * code stays visible.
+ */
+export function alignCellInView(
+  cellId: CellId,
+  alignment: ViewAlignment,
+): void {
+  const element = document.getElementById(HTMLCellId.create(cellId));
+  if (!element) {
+    Logger.warn(
+      `[CellFocusManager] alignCellInView: element not found: ${cellId}`,
+    );
+    return;
+  }
+  const isTallerThanWindow =
+    element.offsetHeight > getScrollParent(element).clientHeight;
+  // `scrollIntoView` takes no margin, but it honours the element's scroll
+  // margin, which only matters for this one call. `lh` is in the cell's
+  // lines.
+  element.style.scrollMarginBlock = `${SCROLLOFF_LINES}lh`;
+  element.scrollIntoView({
+    block: alignment === "center" && isTallerThanWindow ? "start" : alignment,
+  });
+  element.style.scrollMarginBlock = "";
+}
+
+function getScrollParent(element: HTMLElement): Element {
+  for (
+    let parent = element.parentElement;
+    parent;
+    parent = parent.parentElement
+  ) {
+    if (/auto|scroll/.test(getComputedStyle(parent).overflowY)) {
+      return parent;
+    }
+  }
+  return document.scrollingElement ?? document.documentElement;
+}

@@ -61,7 +61,7 @@ vi.mock("../clipboard", () => ({
 vi.mock("../focus-utils", () => ({
   focusCellEditor: vi.fn(),
   focusCell: vi.fn(),
-  scrollCellIntoView: vi.fn(),
+  alignCellInView: vi.fn(),
   raf2: vi.fn((callback: () => void) => callback()),
 }));
 
@@ -83,8 +83,7 @@ vi.mock("@codemirror/autocomplete", () => ({
 const mockIsInHelixNormalMode = vi.fn();
 const mockSetHelixMode = vi.fn();
 vi.mock("@/core/codemirror/keymaps/helix", () => ({
-  isInHelixNormalMode: (...args: unknown[]) =>
-    mockIsInHelixNormalMode(...args),
+  isInHelixNormalMode: (...args: unknown[]) => mockIsInHelixNormalMode(...args),
   setHelixMode: (...args: unknown[]) => mockSetHelixMode(...args),
 }));
 
@@ -115,7 +114,7 @@ afterAll(() => {
 
 import { defaultUserConfig } from "@/core/config/config-schema";
 import { MultiColumn } from "@/utils/id-tree";
-import { focusCell, focusCellEditor } from "../focus-utils";
+import { alignCellInView, focusCell, focusCellEditor } from "../focus-utils";
 import {
   type CellSelectionState,
   exportedForTesting as selectionTesting,
@@ -778,6 +777,21 @@ describe("useCellNavigationProps", () => {
       expect(mockCellActions.focusTopCell).toHaveBeenCalled();
     });
 
+    it.each([
+      ["z", "center"],
+      ["c", "center"],
+      ["t", "start"],
+      ["b", "end"],
+    ] as const)(
+      "should align the focused cell when 'z %s' is pressed",
+      (key, alignment) => {
+        const mockEvents = pressKeys(mockCellId, [{ key: "z" }, { key }]);
+
+        expect(alignCellInView).toHaveBeenCalledWith(mockCellId, alignment);
+        expect(mockEvents[1].preventDefault).toHaveBeenCalled();
+      },
+    );
+
     it("should jump to the last cell when 'G' is pressed", () => {
       pressKeys(mockCellId, [{ key: "G", shiftKey: true }]);
 
@@ -944,10 +958,7 @@ describe("useCellNavigationProps", () => {
 
       pressKeys(cellId1, [{ key: "d" }]);
 
-      expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([
-        cellId1,
-        cellId2,
-      ]);
+      expect(mockCopyCell).toHaveBeenCalledExactlyOnceWith([cellId1, cellId2]);
       expect(mockDeleteCells).toHaveBeenCalledExactlyOnceWith({
         cellIds: [cellId1, cellId2],
       });

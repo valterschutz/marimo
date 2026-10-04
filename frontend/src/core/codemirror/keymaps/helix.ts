@@ -1,16 +1,27 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { type Extension, StateEffect, StateField } from "@codemirror/state";
+import {
+  type Extension,
+  Prec,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
 import {
   type Command,
   Decoration,
   EditorView,
   type KeyBinding,
+  keymap,
   runScopeHandlers,
   ViewPlugin,
 } from "@codemirror/view";
 import { commands, helix, type TypableCommand } from "codemirror-helix";
-import { focusCell, raf2 } from "@/components/editor/navigation/focus-utils";
+import {
+  focusCell,
+  raf2,
+  SCROLLOFF_LINES,
+  type ViewAlignment,
+} from "@/components/editor/navigation/focus-utils";
 import { cellActionsState, cellIdState } from "../cells/state";
 
 /**
@@ -24,6 +35,20 @@ import { cellActionsState, cellIdState } from "../cells/state";
 export function isInHelixNormalMode(view: EditorView): boolean {
   const mode = view.dom.querySelector(".cm-hx-status-panel > span");
   return mode?.textContent !== "INS";
+}
+
+/**
+ * Normal or select mode with no pending count, prefix (`g`, `m`, space) or
+ * character argument (`f`, `t`, `r`), so `fx` still finds an `x`.
+ *
+ * The engine shows that pending state in its command panel; see
+ * `isInHelixNormalMode` for why the DOM is read.
+ */
+export function isIdleInHelixNormalMode(view: EditorView): boolean {
+  const pending = view.dom.querySelector(
+    ".cm-hx-command-panel-flex > span:nth-child(2)",
+  );
+  return isInHelixNormalMode(view) && !pending?.textContent;
 }
 
 /**
@@ -82,6 +107,7 @@ export function helixExtension(): Extension[] {
     focusedField,
     blockCursorOnlyWhileFocused,
     selectionMark,
+    viewMode,
   ];
 }
 
@@ -100,6 +126,82 @@ const focusedField = StateField.define<boolean>({
       setFocusedEffect.of(focusing),
     ),
 });
+
+const setViewPrefixEffect = StateEffect.define<boolean>();
+
+/** Whether `z` was pressed and a view mode key is pending. */
+const viewPrefixField = StateField.define<boolean>({
+  create: () => false,
+  update: (pending, tr) =>
+    tr.effects.reduce((value, effect) => {
+      if (effect.is(setViewPrefixEffect)) {
+        return effect.value;
+      }
+      // A prefix doesn't outlive the editor's focus.
+      return effect.is(setFocusedEffect) && !effect.value ? false : value;
+    }, pending),
+});
+
+/** Where each view mode key puts the cursor line in the window. */
+const VIEW_ALIGNMENTS: Partial<Record<string, ViewAlignment>> = {
+  z: "center",
+  c: "center",
+  t: "start",
+  b: "end",
+};
+
+/**
+ * Helix's view mode alignments, which the engine lacks: `zz` and `zc` centre
+ * the cursor line in the window, `zt` puts it at the top and `zb` at the
+ * bottom. The window is whatever scrolls the editor, usually the notebook.
+ *
+ * Like Helix, the key after `z` is always consumed, so `z` followed by an
+ * unbound key, Escape included, only cancels the prefix. Ahead of the engine
+ * and every other keymap, so the key after `z` reaches nothing else.
+ */
+const viewMode: Extension = [
+  viewPrefixField,
+  Prec.highest(keymap.of([{ any: handleViewModeKey }])),
+];
+
+function handleViewModeKey(view: EditorView, event: KeyboardEvent): boolean {
+  const hasModifier = event.ctrlKey || event.altKey || event.metaKey;
+  if (!view.state.field(viewPrefixField)) {
+    if (event.key !== "z" || hasModifier || !isIdleInHelixNormalMode(view)) {
+      return false;
+    }
+    view.dispatch({ effects: setViewPrefixEffect.of(true) });
+    return true;
+  }
+  if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) {
+    return false;
+  }
+  const alignment = hasModifier ? undefined : VIEW_ALIGNMENTS[event.key];
+  view.dispatch({
+    effects: [
+      setViewPrefixEffect.of(false),
+      ...(alignment ? [alignCursorLine(view, alignment)] : []),
+    ],
+  });
+  // Escape here only cancels the prefix, so the cell must not see it and
+  // leave the editor.
+  event.stopPropagation();
+  return true;
+}
+
+function alignCursorLine(
+  view: EditorView,
+  alignment: ViewAlignment,
+): StateEffect<unknown> {
+  const { anchor, head } = view.state.selection.main;
+  // The block cursor sits on the character before the head of a forward
+  // range.
+  const cursor = head > anchor ? head - 1 : head;
+  return EditorView.scrollIntoView(cursor, {
+    y: alignment,
+    yMargin: SCROLLOFF_LINES * view.defaultLineHeight,
+  });
+}
 
 const BLOCK_CURSOR_CLASS = "cm-hx-block-cursor";
 

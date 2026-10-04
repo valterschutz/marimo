@@ -7,6 +7,7 @@ import { setHelixMode } from "@/core/codemirror/keymaps/helix";
 import type { KeymapConfig } from "@/core/config/config-schema";
 import { logNever } from "@/utils/assertNever";
 import { retryWithTimeout } from "@/utils/timeout";
+import { alignCellInView, type ViewAlignment } from "./focus-utils";
 
 /**
  * Handlers shared by the focus/selection keymap, reused by preset-specific
@@ -129,6 +130,11 @@ function getHelixCommandModeTable(
     );
     return true;
   };
+  // Helix's view mode, applied to the focused cell instead of a line.
+  const alignCell = (alignment: ViewAlignment) => () => {
+    alignCellInView(cellId, alignment);
+    return true;
+  };
   return {
     j: selectMode ? focus["Shift+ArrowDown"] : focus.ArrowDown,
     k: selectMode ? focus["Shift+ArrowUp"] : focus.ArrowUp,
@@ -136,6 +142,10 @@ function getHelixCommandModeTable(
     l: focus.ArrowRight,
     "g g": focus["Mod+ArrowUp"],
     "shift+g": focus["Mod+ArrowDown"],
+    "z z": alignCell("center"),
+    "z c": alignCell("center"),
+    "z t": alignCell("start"),
+    "z b": alignCell("end"),
     x: focus["Shift+ArrowDown"],
     "shift+x": focus["Shift+ArrowUp"],
     v: handlers.toggleSelectMode,
