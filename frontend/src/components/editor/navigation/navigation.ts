@@ -663,8 +663,9 @@ export function useCellNavigationProps(
           deleteCells({ cellIds });
           return true;
         },
-        moveCellUp: () => shortcuts["cell.moveUp"].handle(cellId),
-        moveCellDown: () => shortcuts["cell.moveDown"].handle(cellId),
+        moveCellsUp: (cellIds) => shortcuts["cell.moveUp"].bulkHandle(cellIds),
+        moveCellsDown: (cellIds) =>
+          shortcuts["cell.moveDown"].bulkHandle(cellIds),
         copyCells,
         pasteAtCell,
         createNewCell: actions.createNewCell,

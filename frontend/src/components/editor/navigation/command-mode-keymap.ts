@@ -37,8 +37,10 @@ export interface CommandModeKeymapHandlers {
   deleteCell: () => boolean;
   /** Copies the focused cell (or selection) to the clipboard, then deletes it immediately, refusing on a running or queued cell. */
   deleteCellWithClipboardCopy: () => boolean;
-  moveCellUp: () => boolean;
-  moveCellDown: () => boolean;
+  /** Moves the cells, given in column order, up one position as a unit, refusing at the column edge. */
+  moveCellsUp: (cellIds: CellId[]) => boolean;
+  /** Moves the cells, given in column order, down one position as a unit, refusing at the column edge. */
+  moveCellsDown: (cellIds: CellId[]) => boolean;
   copyCells: (cellIds: CellId[]) => void;
   pasteAtCell: (cellId: CellId, opts?: { before?: boolean }) => void;
   createNewCell: (opts: {
@@ -103,6 +105,8 @@ function getHelixCommandModeTable(
 ): CommandModeKeySequenceTable {
   const { focus, cellId, selectedCells, selectMode, copyCells, pasteAtCell } =
     handlers;
+  // The cell selection is kept in column order, so it moves and copies as a unit.
+  const targetCells = selectedCells.size >= 2 ? [...selectedCells] : [cellId];
   // Autofocus keeps cell-level focus when a cell is created from command mode,
   // so open the new cell's editor in insert mode, like Helix's `o`/`O`. The
   // cell renders, then builds and attaches its editor, over the next frames.
@@ -135,12 +139,10 @@ function getHelixCommandModeTable(
     x: focus["Shift+ArrowDown"],
     "shift+x": focus["Shift+ArrowUp"],
     v: handlers.toggleSelectMode,
-    // No-op while a block of more than one cell is selected, so a selection
-    // is never silently split by moving only the focused cell.
-    "shift+j": () =>
-      selectedCells.size >= 2 ? false : handlers.moveCellDown(),
-    "shift+k": () =>
-      selectedCells.size >= 2 ? false : handlers.moveCellUp(),
+    // The cell selection stays on the moved cells, so repeated presses keep
+    // moving the same cells.
+    "shift+j": () => handlers.moveCellsDown(targetCells),
+    "shift+k": () => handlers.moveCellsUp(targetCells),
     // A consumed selection leaves select mode, like Helix's `d` and `y`.
     d: () => {
       if (!handlers.deleteCellWithClipboardCopy()) {
@@ -150,7 +152,7 @@ function getHelixCommandModeTable(
       return true;
     },
     y: () => {
-      copyCells(selectedCells.size >= 2 ? [...selectedCells] : [cellId]);
+      copyCells(targetCells);
       handlers.exitSelectMode();
       return true;
     },

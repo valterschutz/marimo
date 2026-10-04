@@ -13,6 +13,12 @@ The state in which a cell is focused but no editor inside it is. Keys act on
 whole cells.
 _Avoid_: command mode, normal mode (when referring to cells)
 
+**Cell selection**:
+The contiguous run of cells, within one column, that cell-level actions
+(move, delete, copy) act on as a unit. A single focused cell with nothing
+selected acts as a one-cell selection.
+_Avoid_: multi-select, range (unqualified)
+
 **Cell select mode**:
 A cell command mode state in which movement keys extend the multi-cell
 selection instead of moving focus.

@@ -30,3 +30,5 @@ Decisions the spec left open: select mode is reset by anything that clears the s
 Tests: `selection.test.ts` covers the new reducer field and action; the "helix mode navigation > multi-cell selection" block in `navigation.test.ts` covers `x`, `shift+x`, `v` on/off, `j`/`k` extending in select mode, `j` moving focus after `v` off, Escape clearing both, `d`/`y` consuming the selection and leaving select mode, `shift+j`/`shift+k` no-ops with a multi-selection, and the data attribute. The `useCellNavigationProps` `beforeEach` now resets config overrides, because the vim/helix preset overrides leaked into later describes and Helix `x` shadowed the bulk cut test.
 
 `make check` exits 0 (the same pre-existing ruff findings in untouched Python files are reported but do not fail the target). `pnpm vitest run src/components/editor/navigation`: 6 files, 159 tests passed.
+
+Superseded by #08 (cell-mode-move-selection): `shift+j`/`shift+k` now move the whole cell selection as a block instead of being no-ops with a multi-cell selection.

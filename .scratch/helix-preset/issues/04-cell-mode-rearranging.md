@@ -25,3 +25,5 @@ Implemented in `frontend/src/components/editor/navigation/command-mode-keymap.ts
 Tests added to `frontend/src/components/editor/navigation/__tests__/navigation.test.ts` under "helix mode navigation" cover `shift+j`, `shift+k` (including the no-op with a multi-cell selection), `d` (single cell, a selection, and the running-cell refusal), `y`, `p`, `shift+p`, and `u`.
 
 `make check` passes (pre-existing, unrelated `context-manager-iterator` ruff findings in untouched files do not fail the target). `pnpm vitest run` for the navigation test file: 101 passed.
+
+Superseded by #08 (cell-mode-move-selection): `shift+j`/`shift+k` now move the whole cell selection as a block instead of being no-ops with a multi-cell selection.
