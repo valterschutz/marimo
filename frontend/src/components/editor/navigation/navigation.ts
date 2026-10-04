@@ -36,7 +36,10 @@ import {
   isInHelixNormalMode,
   setHelixMode,
 } from "@/core/codemirror/keymaps/helix";
-import { convertCellToMarkdown } from "@/core/codemirror/language/commands";
+import {
+  convertCellToMarkdown,
+  getCurrentLanguageAdapter,
+} from "@/core/codemirror/language/commands";
 import { switchLanguage } from "@/core/codemirror/language/extension";
 import { LanguageAdapters } from "@/core/codemirror/language/LanguageAdapters";
 import {
@@ -570,6 +573,38 @@ export function useCellNavigationProps(
         },
 
         // Command mode
+        "command.hideCode": addSingleHandler((cellIds) => {
+          const markdownCellIds = cellIds.filter(
+            (id) =>
+              getCurrentLanguageAdapter(ensureCellEditorView(id) ?? null) ===
+              "markdown",
+          );
+          if (markdownCellIds.length === 0) {
+            return false;
+          }
+
+          const cellConfigs = markdownCellIds.map(
+            (id) => store.get(notebookAtom).cellData[id]?.config,
+          );
+          const nextHideCode = !cellConfigs.every(
+            (config) => config?.hide_code,
+          );
+
+          void saveCellConfig({
+            configs: Object.fromEntries(
+              markdownCellIds.map((id) => [id, { hide_code: nextHideCode }]),
+            ),
+          });
+
+          for (const id of markdownCellIds) {
+            actions.updateCellConfig({
+              cellId: id,
+              config: { hide_code: nextHideCode },
+            });
+          }
+
+          return true;
+        }),
         "command.copyCell": addSingleHandler((cellIds) => {
           copyCells(cellIds);
           return true;

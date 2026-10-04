@@ -473,6 +473,11 @@ const DEFAULT_HOT_KEY = {
     group: "Command",
     key: "c",
   },
+  "command.hideCode": {
+    name: "Toggle hide code for a Markdown cell",
+    group: "Command",
+    key: "Shift-h",
+  },
   "command.copyCell": {
     name: "Copy cell",
     group: "Command",

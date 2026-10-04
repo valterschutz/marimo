@@ -72,10 +72,13 @@ vi.mock("@/core/codemirror/language/extension", async (importOriginal) => ({
 }));
 
 const mockConvertCellToMarkdown = vi.fn();
+const mockGetCurrentLanguageAdapter = vi.fn();
 vi.mock("@/core/codemirror/language/commands", async (importOriginal) => ({
   ...(await importOriginal()),
   convertCellToMarkdown: (...args: unknown[]) =>
     mockConvertCellToMarkdown(...args),
+  getCurrentLanguageAdapter: (...args: unknown[]) =>
+    mockGetCurrentLanguageAdapter(...args),
 }));
 
 // Mock simplifySelection from @codemirror/commands
@@ -324,6 +327,48 @@ describe("useCellNavigationProps", () => {
         language: "python",
       });
       expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should toggle hide code when 'H' key is pressed on a Markdown cell", () => {
+      mockGetCurrentLanguageAdapter.mockReturnValue("markdown");
+
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(mockCellId, options),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({ key: "H", shiftKey: true });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockRequestClient.saveCellConfig).toHaveBeenCalledWith({
+        configs: {
+          [mockCellId]: { hide_code: true },
+        },
+      });
+      expect(mockCellActions.updateCellConfig).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        config: { hide_code: true },
+      });
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should not toggle hide code when 'H' key is pressed on a Python cell", () => {
+      mockGetCurrentLanguageAdapter.mockReturnValue("python");
+
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(mockCellId, options),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({ key: "H", shiftKey: true });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockRequestClient.saveCellConfig).not.toHaveBeenCalled();
+      expect(mockCellActions.updateCellConfig).not.toHaveBeenCalled();
     });
 
     it("should cut cell when 'x' key is pressed", async () => {
@@ -827,6 +872,28 @@ describe("useCellNavigationProps", () => {
         });
       },
     );
+
+    it("should toggle hide code when 'H' is pressed on a Markdown cell, instead of moving across columns", () => {
+      mockGetCurrentLanguageAdapter.mockReturnValue("markdown");
+
+      const notebookState = store.get(notebookAtom);
+      store.set(notebookAtom, {
+        ...notebookState,
+        cellIds: MultiColumn.from([[cellId1, cellId3], [cellId2]]),
+      });
+
+      pressKeys(cellId2, [{ key: "H", shiftKey: true }], {
+        ...options,
+        canMoveX: true,
+      });
+
+      expect(mockCellActions.focusCell).not.toHaveBeenCalled();
+      expect(mockRequestClient.saveCellConfig).toHaveBeenCalledWith({
+        configs: {
+          [cellId2]: { hide_code: true },
+        },
+      });
+    });
 
     it("should jump to the first cell when 'g g' is pressed", () => {
       pressKeys(mockCellId, [{ key: "g" }, { key: "g" }]);
