@@ -1,9 +1,16 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { completionKeymap as defaultCompletionKeymap } from "@codemirror/autocomplete";
-import { EditorState } from "@codemirror/state";
-import { keymap } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import {
+  autocompletion,
+  completionStatus,
+  completionKeymap as defaultCompletionKeymap,
+  selectedCompletionIndex,
+  startCompletion,
+} from "@codemirror/autocomplete";
+import { EditorState, type Extension } from "@codemirror/state";
+import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { vim } from "@replit/codemirror-vim";
 import { completionKeymap, filterCompletionBindings } from "../keymap";
 
 function hasEnterBinding(acceptOnEnter: boolean): boolean {
@@ -59,5 +66,74 @@ describe("completionKeymap", () => {
 
   it("completionKeymap removes Enter when acceptOnEnter is false", () => {
     expect(hasEnterBinding(false)).toBe(false);
+  });
+});
+
+describe("completion menu navigation", () => {
+  const views: EditorView[] = [];
+
+  afterEach(() => {
+    for (const view of views.splice(0)) {
+      view.destroy();
+    }
+  });
+
+  function createView(preset: Extension) {
+    const view = new EditorView({
+      state: EditorState.create({
+        extensions: [
+          completionKeymap(),
+          preset,
+          autocompletion({
+            override: [
+              (context) => ({
+                from: context.pos,
+                options: [{ label: "alpha" }, { label: "beta" }],
+              }),
+            ],
+            interactionDelay: 0,
+          }),
+        ],
+      }),
+      parent: document.body,
+    });
+    views.push(view);
+    return view;
+  }
+
+  function press(view: EditorView, key: string, init?: KeyboardEventInit) {
+    return runScopeHandlers(
+      view,
+      new KeyboardEvent("keydown", { key, ...init }),
+      "editor",
+    );
+  }
+
+  async function openCompletionMenu(view: EditorView) {
+    startCompletion(view);
+    await vi.waitFor(() =>
+      expect(completionStatus(view.state)).toBe("active"),
+    );
+  }
+
+  it("moves down and up the menu with Ctrl-n and Ctrl-p in vim", async () => {
+    const view = createView(vim());
+    press(view, "i");
+    await openCompletionMenu(view);
+
+    press(view, "n", { ctrlKey: true });
+    expect(selectedCompletionIndex(view.state)).toBe(1);
+
+    press(view, "p", { ctrlKey: true });
+    expect(selectedCompletionIndex(view.state)).toBe(0);
+  });
+
+  it("leaves Ctrl-n and Ctrl-p unbound in the default preset", async () => {
+    const view = createView([]);
+    await openCompletionMenu(view);
+
+    expect(press(view, "n", { ctrlKey: true })).toBe(false);
+    expect(press(view, "p", { ctrlKey: true })).toBe(false);
+    expect(selectedCompletionIndex(view.state)).toBe(0);
   });
 });

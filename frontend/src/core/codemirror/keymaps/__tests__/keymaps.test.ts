@@ -1,11 +1,21 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
 import {
+  autocompletion,
+  completionStatus,
+  selectedCompletionIndex,
+  startCompletion,
+} from "@codemirror/autocomplete";
+import {
   copyLineDown,
   copyLineUp,
   defaultKeymap as originalDefaultKeymap,
 } from "@codemirror/commands";
-import { EditorSelection, EditorState } from "@codemirror/state";
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+} from "@codemirror/state";
 import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
 import { commands } from "codemirror-helix";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -134,11 +144,12 @@ describe("helix keymap bundle", () => {
   const saveNotebook = vi.fn();
   const views: EditorView[] = [];
 
-  function createView(doc: string) {
+  function createView(doc: string, extensions: Extension = []) {
     const view = new EditorView({
       state: EditorState.create({
         doc,
         extensions: [
+          extensions,
           keymapBundle(
             { preset: "helix", overrides: {} },
             HotkeyProvider.create(),
@@ -156,10 +167,10 @@ describe("helix keymap bundle", () => {
     return view;
   }
 
-  function press(view: EditorView, key: string, shiftKey = false) {
+  function press(view: EditorView, key: string, init?: KeyboardEventInit) {
     return runScopeHandlers(
       view,
-      new KeyboardEvent("keydown", { key, shiftKey }),
+      new KeyboardEvent("keydown", { key, ...init }),
       "editor",
     );
   }
@@ -225,12 +236,65 @@ describe("helix keymap bundle", () => {
     const view = createView("a");
 
     // Shift-Enter is bound by the default keymap but not by the engine.
-    press(view, "Enter", true);
+    press(view, "Enter", { shiftKey: true });
     expect(view.state.doc.toString()).toBe("a");
 
     press(view, "i");
-    press(view, "Enter", true);
+    press(view, "Enter", { shiftKey: true });
     expect(view.state.doc.toString()).toBe("\na");
+  });
+
+  describe("completion menu", () => {
+    function createViewWithCompletions() {
+      return createView(
+        "",
+        autocompletion({
+          override: [
+            (context) => ({
+              from: context.pos,
+              options: [{ label: "alpha" }, { label: "beta" }],
+            }),
+          ],
+          interactionDelay: 0,
+        }),
+      );
+    }
+
+    async function openCompletionMenu(view: EditorView) {
+      startCompletion(view);
+      await vi.waitFor(() =>
+        expect(completionStatus(view.state)).toBe("active"),
+      );
+    }
+
+    it("moves down and up with Ctrl-n and Ctrl-p in insert mode", async () => {
+      const view = createViewWithCompletions();
+      press(view, "i");
+      await openCompletionMenu(view);
+
+      press(view, "n", { ctrlKey: true });
+      expect(selectedCompletionIndex(view.state)).toBe(1);
+
+      press(view, "p", { ctrlKey: true });
+      expect(selectedCompletionIndex(view.state)).toBe(0);
+    });
+
+    it("leaves Ctrl-n and Ctrl-p to the engine in normal mode", async () => {
+      const view = createViewWithCompletions();
+      await openCompletionMenu(view);
+
+      press(view, "n", { ctrlKey: true });
+      expect(selectedCompletionIndex(view.state)).toBe(0);
+    });
+
+    it("lets Ctrl-n and Ctrl-p through when no menu is open", () => {
+      const view = createViewWithCompletions();
+      press(view, "i");
+
+      expect(press(view, "n", { ctrlKey: true })).toBe(false);
+      expect(press(view, "p", { ctrlKey: true })).toBe(false);
+      expect(completionStatus(view.state)).toBeNull();
+    });
   });
 
   it("provides the :w, :q and :wq commands", () => {

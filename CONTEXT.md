@@ -73,6 +73,13 @@ paints Helix-style. Like the block cursor, it is drawn only while the editor
 has focus.
 _Avoid_: selection band, highlight
 
+### Editing
+
+**Completion menu**:
+The list of completion candidates that opens under the cursor while typing
+in an editor. Only one item in it is selected at a time.
+_Avoid_: autocomplete list, popup
+
 ### Cells
 
 **Hidden code**:
