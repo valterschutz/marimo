@@ -1,5 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+import { startCompletion } from "@codemirror/autocomplete";
 import {
   copyLineDown,
   copyLineUp,
@@ -91,6 +92,11 @@ export function keymapBundle(
         keymap.of(overrideKeymap(hotkeys)),
         helixExtension(),
         helixPersonalRemaps(),
+        // Helix's own completion trigger. Must come before the browser's
+        // native cut-current-line behaviour on Ctrl-x can run.
+        keymap.of(
+          onlyInHelixInsertMode([{ key: "Ctrl-x", run: startCompletion }]),
+        ),
         // Keys the engine leaves unbound in insert mode fall back to marimo's
         // defaults. Unlike vim, there is no boundary-jump extension: j and k
         // on the last and first line stay inside the editor.
