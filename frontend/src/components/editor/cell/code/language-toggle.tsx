@@ -16,7 +16,8 @@ interface LanguageTogglesProps {
   editorView: EditorView | null;
   code: string;
   currentLanguageAdapter: LanguageAdapter["type"] | undefined;
-  onAfterToggle: () => void;
+  /** Called with the language the cell was toggled to. */
+  onAfterToggle: (language: LanguageAdapter["type"]) => void;
   /**
    * Classes for the wrapper element. Defaults to the absolutely-positioned,
    * hover-revealed placement used inside the notebook cell editor.
@@ -101,7 +102,7 @@ interface Props {
   toType: LanguageAdapter["type"];
   displayName: string;
   icon: React.ReactNode;
-  onAfterToggle: () => void;
+  onAfterToggle: (language: LanguageAdapter["type"]) => void;
 }
 
 export const LanguageToggle: React.FC<Props> = ({
@@ -118,7 +119,7 @@ export const LanguageToggle: React.FC<Props> = ({
       return;
     }
     switchLanguage(editorView, { language: toType });
-    onAfterToggle();
+    onAfterToggle(toType);
   };
 
   if (!canSwitchToLanguage) {
@@ -133,6 +134,7 @@ export const LanguageToggle: React.FC<Props> = ({
     <Tooltip content={`View as ${displayName}`}>
       <Button
         data-testid="language-toggle-button"
+        aria-label={`View as ${displayName}`}
         variant="text"
         size="xs"
         className="opacity-80 px-1"

@@ -288,6 +288,5 @@ export function notebookStateFromSession(
     history: [],
     scrollKey: null,
     cellLogs: [],
-    untouchedNewCells: new Set(),
   };
 }

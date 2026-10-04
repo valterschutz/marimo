@@ -63,19 +63,21 @@ export function toggleToLanguage(
   return language;
 }
 
+type SaveCellConfig = (opts: {
+  configs: Record<CellId, Partial<CellConfig>>;
+}) => Promise<unknown>;
+
 /**
  * Convert a cell to Markdown, adding the `mo` import if needed and hiding
- * the code (once) the way the UI does when a cell is first turned into
- * Markdown.
+ * the code the way the UI does when a cell is first turned into Markdown.
  */
-export async function convertCellToMarkdown({
+export function convertCellToMarkdown({
   editorView,
   cellId,
   autoInstantiate,
   hideCode,
   createNewCell,
   updateCellConfig,
-  markUntouched,
   saveCellConfig,
 }: {
   editorView: EditorView;
@@ -84,23 +86,32 @@ export async function convertCellToMarkdown({
   hideCode: boolean;
   createNewCell: CellActions["createNewCell"];
   updateCellConfig: CellActions["updateCellConfig"];
-  markUntouched: CellActions["markUntouched"];
-  saveCellConfig: (opts: {
-    configs: Record<CellId, Partial<CellConfig>>;
-  }) => Promise<unknown>;
-}): Promise<void> {
+  saveCellConfig: SaveCellConfig;
+}): void {
   maybeAddMarimoImport({ autoInstantiate, createNewCell });
   switchLanguage(editorView, { language: "markdown", keepCodeAsIs: false });
-
-  // Code stays visible until the user blurs the cell
-  if (!hideCode && MARKDOWN_INITIAL_HIDE_CODE) {
-    await saveCellConfig({
-      configs: { [cellId]: { hide_code: MARKDOWN_INITIAL_HIDE_CODE } },
-    });
-    updateCellConfig({
-      cellId,
-      config: { hide_code: MARKDOWN_INITIAL_HIDE_CODE },
-    });
-    markUntouched({ cellId });
+  if (!hideCode) {
+    hideMarkdownCode({ cellId, updateCellConfig, saveCellConfig });
   }
+}
+
+/**
+ * Hide the code of a cell that just became Markdown. The cell's own state is
+ * updated first, so a slow or failed save cannot leave the code visible.
+ */
+export function hideMarkdownCode({
+  cellId,
+  updateCellConfig,
+  saveCellConfig,
+}: {
+  cellId: CellId;
+  updateCellConfig: CellActions["updateCellConfig"];
+  saveCellConfig: SaveCellConfig;
+}): void {
+  if (!MARKDOWN_INITIAL_HIDE_CODE) {
+    return;
+  }
+  const config = { hide_code: MARKDOWN_INITIAL_HIDE_CODE };
+  updateCellConfig({ cellId, config });
+  void saveCellConfig({ configs: { [cellId]: config } });
 }

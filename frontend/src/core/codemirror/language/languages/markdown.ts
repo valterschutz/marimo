@@ -30,8 +30,8 @@ export type MarkdownLanguageAdapterMetadata = MarkdownMetadata;
 
 /**
  * Default hide_code setting for markdown cells.
- * When true, the markdown code is hidden after the cell is blurred,
- * showing only the rendered output.
+ * When true, the markdown code is hidden whenever its editor does not have
+ * focus, showing only the rendered output.
  */
 export const MARKDOWN_INITIAL_HIDE_CODE = true;
 

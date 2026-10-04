@@ -353,8 +353,6 @@ export function toDocumentChanges(
     case "focusBottomCell":
     case "scrollToTarget":
     case "showCellIfHidden":
-    case "markTouched":
-    case "markUntouched":
       return [];
 
     // Kernel/runtime state — never produces document changes.

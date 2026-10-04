@@ -19,6 +19,7 @@ import { revealHiddenCodeOnSelection } from "@/core/codemirror/cells/extensions"
 import { setupCodeMirror } from "@/core/codemirror/cm";
 import { acceptCompletionOnEnterAtom } from "@/core/codemirror/completion/accept-on-enter-atom";
 import { editorMountScheduler } from "@/core/codemirror/editor-mount-scheduler";
+import { hideMarkdownCode } from "@/core/codemirror/language/commands";
 import {
   getInitialLanguageAdapter,
   languageAdapterState,
@@ -29,7 +30,6 @@ import {
   getEditorCodeAsPython,
   updateEditorCodeFromPython,
 } from "@/core/codemirror/language/utils";
-import { MARKDOWN_INITIAL_HIDE_CODE } from "@/core/codemirror/language/languages/markdown";
 import type { LanguageAdapterType } from "@/core/codemirror/language/types";
 import {
   connectedDocAtom,
@@ -45,6 +45,7 @@ import { useSaveNotebook } from "@/core/saving/save-component";
 import { isAppConnecting } from "@/core/websocket/connection-utils";
 import type { Theme } from "@/theme/useTheme";
 import { cn } from "@/utils/cn";
+import { logNever } from "@/utils/assertNever";
 import { invariant } from "@/utils/invariant";
 import { mergeRefs } from "@/utils/mergeRefs";
 import { AiCompletionEditor } from "../../ai/ai-completion-editor";
@@ -52,6 +53,7 @@ import {
   closeSignatureHelp,
   useCellEditorNavigationProps,
 } from "../../navigation/navigation";
+import { useTemporarilyShownCodeActions } from "../../navigation/state";
 import { useDeleteCellCallback } from "../useDeleteCell";
 import { useSplitCellCallback } from "../useSplitCell";
 import { CodePlaceholder } from "./code-placeholder";
@@ -127,6 +129,7 @@ const CellEditorInternal = ({
 
   const loading = status === "running" || status === "queued";
   const cellActions = useCellActions();
+  const temporarilyShownCodeActions = useTemporarilyShownCodeActions();
   const splitCell = useSplitCellCallback();
 
   const isMarkdown = languageAdapter === "markdown";
@@ -176,16 +179,15 @@ const CellEditorInternal = ({
       autoInstantiate,
       createNewCell: cellActions.createNewCell,
     });
-    // Code stays visible until the user blurs the cell
-    if (!cellConfig.hide_code && MARKDOWN_INITIAL_HIDE_CODE) {
-      void saveCellConfig({
-        configs: { [cellId]: { hide_code: MARKDOWN_INITIAL_HIDE_CODE } },
-      });
-      cellActions.updateCellConfig({
+    if (!cellConfig.hide_code) {
+      // The toggle happens from inside the editor, so keep the code visible
+      // until the user leaves it.
+      temporarilyShownCodeActions.add(cellId);
+      hideMarkdownCode({
         cellId,
-        config: { hide_code: MARKDOWN_INITIAL_HIDE_CODE },
+        updateCellConfig: cellActions.updateCellConfig,
+        saveCellConfig,
       });
-      cellActions.markUntouched({ cellId });
     }
   });
 
@@ -194,6 +196,21 @@ const CellEditorInternal = ({
       autoInstantiate,
       createNewCell: cellActions.createNewCell,
     });
+  });
+
+  const afterToggleLanguage = useEvent((language: LanguageAdapterType) => {
+    switch (language) {
+      case "markdown":
+        afterToggleMarkdown();
+        return;
+      case "sql":
+        afterToggleSQL();
+        return;
+      case "python":
+        return;
+      default:
+        logNever(language);
+    }
   });
 
   const aiFeaturesEnabled = isAiFeatureEnabled(userConfig);
@@ -566,7 +583,7 @@ const CellEditorInternal = ({
               code={code}
               editorView={editorViewRef.current}
               currentLanguageAdapter={languageAdapter}
-              onAfterToggle={afterToggleMarkdown}
+              onAfterToggle={afterToggleLanguage}
             />
           </div>
         )}

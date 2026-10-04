@@ -28,6 +28,7 @@ import {
   useCellEditorNavigationProps,
   useCellNavigationProps,
 } from "../navigation";
+import { temporarilyShownCodeAtom } from "../state";
 
 // Mock only the essential dependencies that we need to control
 vi.mock("@/core/cells/cells", async (importOriginal) => ({
@@ -166,8 +167,6 @@ const mockCellActions = MockNotebook.cellActions({
   sendToTop: vi.fn(),
   sendToBottom: vi.fn(),
   updateCellConfig: vi.fn(),
-  markTouched: vi.fn(),
-  markUntouched: vi.fn(),
   deleteCell: vi.fn(),
   undoDeleteCell: vi.fn(),
 });
@@ -2580,6 +2579,68 @@ describe("useCellEditorNavigationProps", () => {
 
       expect(focusCell).not.toHaveBeenCalled();
       expect(mockEvent.continuePropagation).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("hidden code", () => {
+    const setHideCode = (hideCode: boolean) => {
+      store.set(
+        notebookAtom,
+        MockNotebook.notebookState({
+          cellData: {
+            [mockCellId]: {
+              id: mockCellId,
+              config: { hide_code: hideCode, disabled: false },
+            },
+          },
+        }),
+      );
+    };
+
+    beforeEach(() => {
+      store.set(temporarilyShownCodeAtom, new Set());
+    });
+
+    it("reveals hidden code while the editor has focus", () => {
+      setHideCode(true);
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, { current: null }),
+      );
+
+      act(() => {
+        result.current.onFocus?.({} as React.FocusEvent<HTMLElement>);
+      });
+
+      expect(store.get(temporarilyShownCodeAtom).has(mockCellId)).toBe(true);
+    });
+
+    it("leaves cells whose code is not hidden alone", () => {
+      setHideCode(false);
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, { current: null }),
+      );
+
+      act(() => {
+        result.current.onFocus?.({} as React.FocusEvent<HTMLElement>);
+      });
+
+      expect(store.get(temporarilyShownCodeAtom).has(mockCellId)).toBe(false);
+    });
+
+    it("hides the code again when leaving to cell command mode", () => {
+      setHideCode(true);
+      const { result } = renderWithProvider(() =>
+        useCellEditorNavigationProps(mockCellId, { current: null }),
+      );
+
+      act(() => {
+        result.current.onFocus?.({} as React.FocusEvent<HTMLElement>);
+      });
+      act(() => {
+        result.current.onKeyDown?.(Mocks.keyboardEvent({ key: "Escape" }));
+      });
+
+      expect(store.get(temporarilyShownCodeAtom).has(mockCellId)).toBe(false);
     });
   });
 

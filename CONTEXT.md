@@ -84,6 +84,9 @@ _Avoid_: autocomplete list, popup
 
 **Hidden code**:
 A cell's code when its `hide_code` flag is set: only the output is shown.
-Focusing the editor, or a user selection inside it (such as a find match),
-temporarily reveals it.
+Only editor focus, or a user selection inside the editor (such as a find
+match), temporarily reveals it; cell focus alone does not. Every way of
+creating a Markdown cell sets the flag, so Markdown cells start with hidden
+code. A Markdown cell with empty source is never hidden, since it has no
+output to show in its place.
 _Avoid_: collapsed, folded

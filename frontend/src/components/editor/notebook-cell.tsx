@@ -16,7 +16,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -29,6 +28,7 @@ import { aiCompletionCellAtom } from "@/core/ai/state";
 import { outputIsLoading, outputIsStale } from "@/core/cells/cell";
 import { isOutputEmpty } from "@/core/cells/outputs";
 import { useIsPendingCut } from "@/core/cells/pending-cut-service";
+import type { CellData } from "@/core/cells/types";
 import { autocompletionKeymap } from "@/core/codemirror/cm";
 import { clearCellBreakpoints } from "@/core/codemirror/cells/debugger-state";
 import type { LanguageAdapterType } from "@/core/codemirror/language/types";
@@ -44,7 +44,7 @@ import { cn } from "@/utils/cn";
 import type { Milliseconds, Seconds } from "@/utils/time";
 import {
   type CellActions,
-  createUntouchedCellAtom,
+  isCodeHidden,
   useCellActions,
   useCellData,
   useCellHandle,
@@ -153,30 +153,25 @@ function useCellCompletion(
  *
  * The code is shown if:
  * - hide_code is false
+ * - the cell is an empty Markdown cell
  * - the cell-editor is focused (temporarily shown)
- * - the cell is newly created (untouched)
  */
 function useCellHiddenLogic({
   cellId,
-  cellConfig,
+  cell,
   languageAdapter,
   editorView,
 }: {
   cellId: CellId;
-  cellConfig: CellConfig;
+  cell: Pick<CellData, "code" | "config">;
   languageAdapter: LanguageAdapterType | undefined;
   editorView: React.RefObject<EditorView | null>;
   editorViewParentRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const temporarilyVisible = useTemporarilyShownCode(cellId);
   const temporarilyShownCodeActions = useTemporarilyShownCodeActions();
-  const isUntouched = useAtomValue(
-    useMemo(() => createUntouchedCellAtom(cellId), [cellId]),
-  );
-
   // The cell code is shown if the cell is not configured to be hidden or if the code is temporarily visible (i.e. when focused).
-  const isCellCodeShown =
-    !cellConfig.hide_code || temporarilyVisible || isUntouched;
+  const isCellCodeShown = !isCodeHidden(cell) || temporarilyVisible;
   const isMarkdown = languageAdapter === "markdown";
   const isMarkdownCodeHidden = isMarkdown && !isCellCodeShown;
 
@@ -468,7 +463,7 @@ const EditableCellComponent = ({
     showHiddenCodeIfMarkdown,
   } = useCellHiddenLogic({
     cellId,
-    cellConfig: cellData.config,
+    cell: cellData,
     languageAdapter,
     editorView,
     editorViewParentRef,
@@ -1101,7 +1096,7 @@ const SetupCellComponent = ({
 
   const { isCellCodeShown, showHiddenCode } = useCellHiddenLogic({
     cellId,
-    cellConfig: cellData.config,
+    cell: cellData,
     languageAdapter: "python",
     editorView,
     editorViewParentRef,

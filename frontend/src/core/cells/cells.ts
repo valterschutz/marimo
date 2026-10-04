@@ -36,6 +36,7 @@ import { prepareCellForExecution, transitionCell } from "./cell";
 import { documentTransactionMiddleware } from "./document-changes";
 import { CellId, SCRATCH_CELL_ID, SETUP_CELL_ID } from "./ids";
 import { type CellLog, getCellLogsForMessage } from "./logs";
+import { getReadonlyCodeDisplay } from "./readonly-code-display";
 import {
   focusAndScrollCellIntoView,
   scrollToBottom,
@@ -116,12 +117,6 @@ export interface NotebookState {
    * Logs of all cell messages
    */
   cellLogs: CellLog[];
-  /**
-   * Set of cells that have been created that are initialized with `hide_code`.
-   *
-   * These start temporarily open until their first blur event.
-   */
-  untouchedNewCells: Set<CellId>;
 }
 
 function withScratchCell(notebookState: NotebookState): NotebookState {
@@ -155,7 +150,6 @@ export function initialNotebookState(): NotebookState {
     history: [],
     scrollKey: null,
     cellLogs: [],
-    untouchedNewCells: new Set<CellId>(),
   });
 }
 
@@ -189,7 +183,7 @@ export interface CreateNewCellAction {
   autoFocus?: boolean;
   /** If true, skip creation if code already exists */
   skipIfCodeExists?: boolean;
-  /** Hide the code in the new cell. This will be initially shown until the cell is blurred for the first time. */
+  /** Hide the code in the new cell. It is still shown while its editor has focus. */
   hideCode?: boolean;
 }
 
@@ -276,10 +270,6 @@ const {
         [newCellId]: createRef(),
       },
       scrollKey: autoFocus ? newCellId : null,
-      untouchedNewCells:
-        hideCode && autoFocus
-          ? new Set([...state.untouchedNewCells, newCellId])
-          : state.untouchedNewCells,
     };
   },
   moveCell: (
@@ -1242,34 +1232,6 @@ const {
 
     return state;
   },
-  markTouched: (state, action: { cellId: CellId }) => {
-    const { cellId } = action;
-
-    if (state.untouchedNewCells.has(cellId)) {
-      const nextUntouchedNewCells = new Set(state.untouchedNewCells);
-      nextUntouchedNewCells.delete(cellId);
-      return {
-        ...state,
-        untouchedNewCells: nextUntouchedNewCells,
-      };
-    }
-
-    return state;
-  },
-  markUntouched: (state, action: { cellId: CellId }) => {
-    const { cellId } = action;
-
-    if (!state.untouchedNewCells.has(cellId)) {
-      const nextUntouchedNewCells = new Set(state.untouchedNewCells);
-      nextUntouchedNewCells.add(cellId);
-      return {
-        ...state,
-        untouchedNewCells: nextUntouchedNewCells,
-      };
-    }
-
-    return state;
-  },
   scrollToTarget: (state) => {
     // Scroll to the specified cell and clear the scroll key.
     const scrollKey = state.scrollKey;
@@ -1607,10 +1569,23 @@ const {
 addMiddleware(documentTransactionMiddleware);
 
 function isCellCodeHidden(state: NotebookState, cellId: CellId): boolean {
-  return (
-    Boolean(state.cellData[cellId].config.hide_code) &&
-    !state.untouchedNewCells.has(cellId)
-  );
+  return isCodeHidden(state.cellData[cellId]);
+}
+
+/**
+ * Whether a cell's code is hidden, before any temporary reveal such as editor
+ * focus. A Markdown cell with empty source is never hidden, since it has no
+ * output to show in its place.
+ */
+export function isCodeHidden({
+  code,
+  config,
+}: Pick<CellData, "code" | "config">): boolean {
+  if (!config.hide_code) {
+    return false;
+  }
+  const display = getReadonlyCodeDisplay(code);
+  return !(display.language === "markdown" && display.code.trim() === "");
 }
 
 // Helper function to update a cell in the array
@@ -1940,10 +1915,6 @@ export function flattenTopLevelNotebookCells(
       ...cellRuntime[cellId],
     })),
   );
-}
-
-export function createUntouchedCellAtom(cellId: CellId): Atom<boolean> {
-  return atom((get) => get(notebookAtom).untouchedNewCells.has(cellId));
 }
 
 export function createTracebackInfoAtom(

@@ -122,7 +122,6 @@ function useCellFocusProps(
   editorView: React.RefObject<EditorView | null>,
 ) {
   const focusActions = useCellFocusActions();
-  const actions = useCellActions();
   const temporarilyShownCodeActions = useTemporarilyShownCodeActions();
 
   // This occurs at the cell level and descedants.
@@ -150,7 +149,6 @@ function useCellFocusProps(
 
       // On blur, hide the code if it was temporarily shown.
       temporarilyShownCodeActions.remove(cellId);
-      actions.markTouched({ cellId });
       focusActions.blurCell();
       // Close signature help when clicking outside the cell
       if (editorView.current) {
@@ -402,8 +400,7 @@ export function useCellNavigationProps(
       // Cell ids targeted by a delete, or null if any of them is running or
       // queued and the delete must be refused.
       const getCellIdsToDelete = (): CellId[] | null => {
-        const cellIds =
-          selectedCells.size >= 2 ? [...selectedCells] : [cellId];
+        const cellIds = selectedCells.size >= 2 ? [...selectedCells] : [cellId];
         const notebook = store.get(notebookAtom);
         const hasRunningCell = cellIds.some((id) => {
           const { status } = notebook.cellRuntime[id];
@@ -619,14 +616,13 @@ export function useCellNavigationProps(
               continue;
             }
             const cellConfig = store.get(notebookAtom).cellData[id]?.config;
-            void convertCellToMarkdown({
+            convertCellToMarkdown({
               editorView: targetView,
               cellId: id,
               autoInstantiate,
               hideCode: cellConfig?.hide_code ?? false,
               createNewCell: actions.createNewCell,
               updateCellConfig: actions.updateCellConfig,
-              markUntouched: actions.markUntouched,
               saveCellConfig,
             });
           }
@@ -809,6 +805,7 @@ export function useCellEditorNavigationProps(
   cellId: CellId,
   editorView: React.RefObject<EditorView | null>,
 ) {
+  const store = useStore();
   const temporarilyShownCodeActions = useTemporarilyShownCodeActions();
   const keymapPreset = useAtomValue(keymapPresetAtom);
   const hotkeys = useAtomValue(hotkeysAtom);
@@ -906,7 +903,17 @@ export function useCellEditorNavigationProps(
     },
   });
 
-  return keyboardProps;
+  return mergeProps(keyboardProps, {
+    // The cell's onFocusWithin misses focus moving from the cell into its
+    // editor, and the flag is checked rather than whether the code is shown
+    // so an empty Markdown cell stays revealed once its first character is
+    // typed.
+    onFocus: () => {
+      if (store.get(notebookAtom).cellData[cellId]?.config.hide_code) {
+        temporarilyShownCodeActions.add(cellId);
+      }
+    },
+  });
 }
 
 function findClosestAdjacentCell(

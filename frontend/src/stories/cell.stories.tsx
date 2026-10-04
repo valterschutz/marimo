@@ -79,7 +79,6 @@ const Cell: React.FC<{
     cellLogs: [],
     history: [],
     scrollKey: null,
-    untouchedNewCells: new Set(),
   };
 
   const store = createStore();

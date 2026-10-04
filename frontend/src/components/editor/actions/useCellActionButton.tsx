@@ -91,7 +91,6 @@ export function useCellActionButtons({ cell, closePopover }: Props) {
     sendToBottom,
     addColumnBreakpoint,
     clearCellOutput,
-    markUntouched,
   } = useCellActions();
   const splitCell = useSplitCellCallback();
   const runCell = useRunCell(cell?.cellId);
@@ -216,19 +215,18 @@ export function useCellActionButtons({ cell, closePopover }: Props) {
         icon: <MarkdownIcon />,
         label: "Convert to Markdown",
         hotkey: "cell.viewAsMarkdown",
-        handle: async () => {
+        handle: () => {
           const editorView = getEditorView();
           if (!editorView) {
             return;
           }
-          await convertCellToMarkdown({
+          convertCellToMarkdown({
             editorView,
             cellId,
             autoInstantiate,
             hideCode: config.hide_code ?? false,
             createNewCell: createCell,
             updateCellConfig,
-            markUntouched,
             saveCellConfig,
           });
         },

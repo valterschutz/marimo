@@ -88,7 +88,6 @@ LongReprA()`,
   cellLogs: [],
   history: [],
   scrollKey: null,
-  untouchedNewCells: new Set(),
 });
 
 export default {
