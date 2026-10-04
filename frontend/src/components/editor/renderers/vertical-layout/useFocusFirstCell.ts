@@ -1,5 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+import { focusCell } from "@/components/editor/navigation/focus-utils";
 import { getNotebook } from "@/core/cells/cells";
 import type { CellId } from "@/core/cells/ids";
 import { useOnMount } from "@/hooks/useLifecycle";
@@ -7,12 +8,12 @@ import { extractCellNameFromHash } from "@/utils/cell-urls";
 import { Logger } from "@/utils/Logger";
 
 /**
- * Focus the first editor.
+ * Give the first cell cell focus (cell command mode), not editor focus.
  *
  * If the URL contains a /#scrollTo= hash, focus on that cell.
- * Otherwise, focus on the first non-hidden cell.
+ * Otherwise, focus on the first cell.
  */
-export function useFocusFirstEditor() {
+export function useFocusFirstCell() {
   useOnMount(() => {
     const delay = 100; // ms just so its not immediate
 
@@ -35,9 +36,9 @@ export function useFocusFirstEditor() {
         } else {
           // Otherwise focus on the first cell
           try {
-            focusFirstEditor();
+            focusFirstCell();
           } catch (error) {
-            Logger.warn("Error focusing first editor", error);
+            Logger.warn("Error focusing first cell", error);
           }
         }
       });
@@ -48,17 +49,11 @@ export function useFocusFirstEditor() {
   });
 }
 
-function focusFirstEditor() {
-  const { cellIds, cellData, cellHandles } = getNotebook();
-
-  // Focus on the first cell if it's been mounted and is not hidden
-  for (const cellId of cellIds.iterateTopLevelIds) {
-    const handle = cellHandles[cellId];
-    const hidden = cellData[cellId]?.config.hide_code;
-    if (!hidden && handle?.current?.editorView) {
-      handle.current.editorView.focus();
-      return;
-    }
+function focusFirstCell() {
+  const { cellIds } = getNotebook();
+  const [cellId] = cellIds.iterateTopLevelIds;
+  if (cellId) {
+    focusCell(cellId);
   }
 }
 
@@ -85,12 +80,7 @@ function focusCellByName(cellName: string) {
 
     hasScrolledToCell = true;
 
-    // Try to focus the cell
     if (cellElement instanceof HTMLElement) {
-      cellElement.focus();
-
-      // Look for an editor to focus
-      const { cellHandles } = getNotebook();
       const cellId = extractCellIdFromDomElement(cellElement);
 
       if (!cellId) {
@@ -98,17 +88,14 @@ function focusCellByName(cellName: string) {
         return;
       }
 
-      const editor = cellHandles[cellId]?.current?.editorView;
-      if (editor) {
-        editor.focus();
-      }
+      focusCell(cellId);
     }
   } else {
     Logger.warn(
       `Cannot focus cell with name ${cellName} because it was not found`,
     );
-    // Fall back to focusing the first editor if cell not found
-    focusFirstEditor();
+    // Fall back to focusing the first cell if cell not found
+    focusFirstCell();
   }
 }
 

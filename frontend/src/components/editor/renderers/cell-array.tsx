@@ -52,7 +52,7 @@ import { useChromeActions } from "../chrome/state";
 import { Column } from "../columns/cell-column";
 import { NotebookBanner } from "../notebook-banner";
 import { StdinBlockingAlert } from "../stdin-blocking-alert";
-import { useFocusFirstEditor } from "./vertical-layout/useFocusFirstEditor";
+import { useFocusFirstCell } from "./vertical-layout/useFocusFirstCell";
 import { VerticalLayoutWrapper } from "./vertical-layout/vertical-layout-wrapper";
 
 interface CellArrayProps {
@@ -92,7 +92,7 @@ const CellArrayInternal: React.FC<CellArrayProps> = ({
   const isPresenting = mode === "present";
 
   // Side-effects
-  useFocusFirstEditor();
+  useFocusFirstCell();
 
   // HOTKEYS
   // Cell-editing hotkeys are disabled while presenting
