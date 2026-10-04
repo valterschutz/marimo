@@ -7,12 +7,12 @@ import { ErrorBoundary } from "@/components/editor/boundary/ErrorBoundary";
 import { Spinner } from "@/components/icons/spinner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getSessionId } from "@/core/kernel/session";
 import { useRequestClient } from "@/core/network/requests";
 import { useAsyncData } from "@/hooks/useAsyncData";
 import { Banner } from "@/plugins/impl/common/error-banner";
 import { prettyError } from "@/utils/errors";
 import { PathBuilder, Paths } from "@/utils/paths";
+import { notebookLinkTarget } from "@/utils/links";
 import { asURL } from "@/utils/url";
 
 const capitalize = (word: string): string => {
@@ -27,10 +27,6 @@ const titleCase = (path: string): string => {
     .filter(Boolean)
     .map((part) => part.split(/[_-]/).map(capitalize).join(" "))
     .join(" > ");
-};
-
-const tabTarget = (path: string): string => {
-  return `${getSessionId()}-${encodeURIComponent(path)}`;
 };
 
 const isHttpsUrl = (value: string): boolean => {
@@ -147,7 +143,7 @@ const GalleryPage: React.FC = () => {
                     href={asURL(
                       `?file=${encodeURIComponent(file.relativePath)}`,
                     ).toString()}
-                    target={tabTarget(file.path)}
+                    target={notebookLinkTarget(file.path)}
                     className="no-underline"
                   >
                     <Card className="h-full overflow-hidden hover:bg-accent/20 transition-colors">
