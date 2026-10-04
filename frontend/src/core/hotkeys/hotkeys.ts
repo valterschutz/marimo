@@ -599,9 +599,11 @@ export class OverridingHotkeyProvider extends HotkeyProvider {
   override getHotkey(action: HotkeyAction): ResolvedHotkey {
     const base = super.getHotkey(action);
     const override = this.overrides[action];
+    // An override of "" means the user explicitly disabled this shortcut,
+    // as distinct from no override being present at all.
     return {
       name: base.name,
-      key: override ? normalizeKeyString(override) : base.key,
+      key: override === undefined ? base.key : normalizeKeyString(override),
       additionalKeywords: base.additionalKeywords,
     };
   }

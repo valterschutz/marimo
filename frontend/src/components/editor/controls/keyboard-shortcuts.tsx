@@ -1,7 +1,13 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
 import { atom, useAtom, useAtomValue } from "jotai";
-import { AlertTriangleIcon, EditIcon, XIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  BanIcon,
+  EditIcon,
+  RotateCcwIcon,
+  XIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +32,7 @@ import {
   DialogPortal,
   DialogTitle,
 } from "../../ui/dialog";
+import { Tooltip } from "../../ui/tooltip";
 import { DuplicateShortcutBanner } from "./duplicate-shortcut-banner";
 
 export const keyboardShortcutsAtom = atom(false);
@@ -80,7 +87,12 @@ export const KeyboardShortcuts: React.FC = () => {
     if (!editingShortcut) {
       return;
     }
+    await resetShortcut(editingShortcut);
+    setEditingShortcut(null);
+    setNewShortcut([]);
+  };
 
+  const resetShortcut = async (action: HotkeyAction) => {
     const newConfig = {
       keymap: {
         ...config.keymap,
@@ -91,10 +103,22 @@ export const KeyboardShortcuts: React.FC = () => {
     };
 
     // oxlint-disable-next-line typescript/no-dynamic-delete
-    delete newConfig.keymap.overrides[editingShortcut];
+    delete newConfig.keymap.overrides[action];
 
-    setEditingShortcut(null);
-    setNewShortcut([]);
+    await saveConfigOptimistic(newConfig);
+  };
+
+  const disableShortcut = async (action: HotkeyAction) => {
+    const newConfig = {
+      keymap: {
+        ...config.keymap,
+        overrides: {
+          ...config.keymap.overrides,
+          [action]: "",
+        },
+      },
+    };
+
     await saveConfigOptimistic(newConfig);
   };
 
@@ -122,6 +146,9 @@ export const KeyboardShortcuts: React.FC = () => {
   if (!isOpen) {
     return null;
   }
+
+  const isDisabled = (action: HotkeyAction) =>
+    (config.keymap.overrides ?? {})[action] === "";
 
   const renderItem = (action: HotkeyAction) => {
     const hotkey = hotkeys.getHotkey(action);
@@ -228,13 +255,32 @@ export const KeyboardShortcuts: React.FC = () => {
         className="grid grid-cols-[auto_2fr_3fr] gap-2 items-center"
       >
         {hotkeys.isEditable(action) ? (
-          <EditIcon
-            className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
-            onClick={() => {
-              setNewShortcut([]);
-              setEditingShortcut(action);
-            }}
-          />
+          <div className="flex items-center gap-1.5">
+            <EditIcon
+              className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
+              onClick={() => {
+                setNewShortcut([]);
+                setEditingShortcut(action);
+              }}
+            />
+            {hotkey.key ? (
+              <Tooltip content="Disable shortcut" delayDuration={300}>
+                <BanIcon
+                  className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
+                  onClick={() => disableShortcut(action)}
+                />
+              </Tooltip>
+            ) : (
+              isDisabled(action) && (
+                <Tooltip content="Restore default shortcut" delayDuration={300}>
+                  <RotateCcwIcon
+                    className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
+                    onClick={() => resetShortcut(action)}
+                  />
+                </Tooltip>
+              )
+            )}
+          </div>
         ) : (
           <div className="w-3 h-3" />
         )}

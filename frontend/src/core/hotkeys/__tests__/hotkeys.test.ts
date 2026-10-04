@@ -134,4 +134,12 @@ describe("OverridingHotkeyProvider", () => {
     );
     expect(provider.getHotkey("cell.run").key).toBe("Shift-Enter");
   });
+
+  it("should treat an empty-string override as an explicitly disabled shortcut", () => {
+    const provider = new OverridingHotkeyProvider(
+      { "cell.run": "" },
+      { platform: "mac" },
+    );
+    expect(provider.getHotkey("cell.run").key).toBe("");
+  });
 });
