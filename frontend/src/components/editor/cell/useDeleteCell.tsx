@@ -11,9 +11,31 @@ import {
 import type { CellId } from "@/core/cells/ids";
 import { useRequestClient } from "@/core/network/requests";
 import { store } from "@/core/state/jotai";
+import { focusCell, isAnyCellFocused } from "../navigation/focus-utils";
+
+/**
+ * Wraps `deleteCell` so that cell focus survives the delete: the cell that
+ * takes over focus gets cell focus instead of editor focus.
+ *
+ * The next cell is focused only after the deleted cell has left the DOM, when
+ * nothing has focus anymore, which reads as a delete from an editor. So cell
+ * focus is handed over while the deleted cell still holds it.
+ */
+function useDeleteCellKeepingCellFocus() {
+  const { deleteCell } = useCellActions();
+  return (opts: { cellId: CellId }) => {
+    const hadCellFocus = isAnyCellFocused();
+    deleteCell(opts);
+    const { scrollKey } = store.get(notebookAtom);
+    if (hadCellFocus && scrollKey) {
+      focusCell(scrollKey);
+    }
+  };
+}
 
 export function useDeleteCellCallback() {
-  const { deleteCell, undoDeleteCell } = useCellActions();
+  const { undoDeleteCell } = useCellActions();
+  const deleteCell = useDeleteCellKeepingCellFocus();
   const { sendDeleteCell } = useRequestClient();
 
   return useEvent((opts: { cellId: CellId }) => {
@@ -53,7 +75,8 @@ export function useDeleteCellCallback() {
 }
 
 export function useDeleteManyCellsCallback() {
-  const { deleteCell, undoDeleteCell } = useCellActions();
+  const { undoDeleteCell } = useCellActions();
+  const deleteCell = useDeleteCellKeepingCellFocus();
   const { sendDeleteCell } = useRequestClient();
 
   return useEvent(async (opts: { cellIds: CellId[] }) => {
