@@ -49,3 +49,11 @@ _Avoid_: mode indicator, status bar
 The engine's panel under an editor that hosts the `:` command prompt and
 the `/` search prompt.
 _Avoid_: command line, prompt panel
+
+### Cells
+
+**Hidden code**:
+A cell's code when its `hide_code` flag is set: only the output is shown.
+Focusing the editor, or a user selection inside it (such as a find match),
+temporarily reveals it.
+_Avoid_: collapsed, folded

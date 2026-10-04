@@ -15,6 +15,7 @@ import { SETUP_CELL_ID } from "@/core/cells/ids";
 import { usePendingDeleteService } from "@/core/cells/pending-delete-service";
 import type { CellData, CellRuntimeState } from "@/core/cells/types";
 import { notebookCellEditorViews } from "@/core/cells/utils";
+import { revealHiddenCodeOnSelection } from "@/core/codemirror/cells/extensions";
 import { setupCodeMirror } from "@/core/codemirror/cm";
 import { acceptCompletionOnEnterAtom } from "@/core/codemirror/completion/accept-on-enter-atom";
 import { editorMountScheduler } from "@/core/codemirror/editor-mount-scheduler";
@@ -293,18 +294,8 @@ const CellEditorInternal = ({
           },
         };
       }),
-      // Listen to selection changes, and show the code if it is hidden
-      EditorView.updateListener.of((update) => {
-        if (update.selectionSet) {
-          const selection = update.state.selection;
-          const hasSelection = selection.ranges.some(
-            (range) => range.from !== range.to,
-          );
-
-          if (hasSelection) {
-            showHiddenCode({ focus: false });
-          }
-        }
+      revealHiddenCodeOnSelection({
+        onReveal: () => showHiddenCode({ focus: false }),
       }),
       // Whenever the editor is focused (e.g. via go-to-definition), show the cell if it is hidden.
       EditorView.domEventHandlers({

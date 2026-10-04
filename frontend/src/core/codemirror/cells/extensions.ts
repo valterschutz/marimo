@@ -421,6 +421,27 @@ export function markdownAutoRunExtension({
   });
 }
 
+/**
+ * Reveal hidden code when the user selects text in it, e.g. a find match.
+ *
+ * Only user selections count: a keymap may set a non-empty selection on its
+ * own, such as the helix engine's one-character block cursor on mount.
+ */
+export function revealHiddenCodeOnSelection({
+  onReveal,
+}: {
+  onReveal: () => void;
+}): Extension {
+  return EditorView.updateListener.of((update) => {
+    if (
+      update.transactions.some((tr) => tr.isUserEvent("select")) &&
+      update.state.selection.ranges.some((range) => !range.empty)
+    ) {
+      onReveal();
+    }
+  });
+}
+
 export function cellBundle({
   cellId,
   hotkeys,

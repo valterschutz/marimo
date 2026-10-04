@@ -2,14 +2,16 @@
 // @vitest-environment jsdom
 
 import {
+  EditorSelection,
   EditorState,
   Transaction,
   type TransactionSpec,
 } from "@codemirror/state";
-import { describe, expect, it } from "vitest";
+import { EditorView } from "@codemirror/view";
+import { describe, expect, it, vi } from "vitest";
 import { formattingChangeEffect } from "../../format";
 import { loroSyncAnnotation } from "../../rtc/loro/sync";
-import { exportedForTesting } from "../extensions";
+import { exportedForTesting, revealHiddenCodeOnSelection } from "../extensions";
 
 const { shouldAutorunMarkdownUpdate } = exportedForTesting;
 
@@ -108,5 +110,46 @@ describe("shouldAutorunMarkdownUpdate", () => {
         predicate: () => false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("revealHiddenCodeOnSelection", () => {
+  function createView() {
+    const onReveal = vi.fn();
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "hello world",
+        extensions: [revealHiddenCodeOnSelection({ onReveal })],
+      }),
+    });
+    return { view, onReveal };
+  }
+
+  it.each(["select", "select.pointer", "select.search"])(
+    "reveals on a non-empty %s selection",
+    (userEvent) => {
+      const { view, onReveal } = createView();
+      view.dispatch({
+        selection: EditorSelection.range(0, 5),
+        userEvent,
+      });
+      expect(onReveal).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("ignores a collapsed user selection", () => {
+    const { view, onReveal } = createView();
+    view.dispatch({
+      selection: EditorSelection.cursor(3),
+      userEvent: "select",
+    });
+    expect(onReveal).not.toHaveBeenCalled();
+  });
+
+  it("ignores a selection set without a user event", () => {
+    // The helix engine sets a one-character block cursor this way on mount.
+    const { view, onReveal } = createView();
+    view.dispatch({ selection: EditorSelection.range(1, 0) });
+    expect(onReveal).not.toHaveBeenCalled();
   });
 });
