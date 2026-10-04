@@ -463,10 +463,20 @@ const DEFAULT_HOT_KEY = {
     group: "Command",
     key: "q",
   },
+  "command.cellToMarkdown": {
+    name: "Convert cell to Markdown",
+    group: "Command",
+    key: "m",
+  },
+  "command.cellToCode": {
+    name: "Convert cell to Code",
+    group: "Command",
+    key: "c",
+  },
   "command.copyCell": {
     name: "Copy cell",
     group: "Command",
-    key: "c",
+    key: "y",
   },
   "command.cutCell": {
     name: "Cut cell",

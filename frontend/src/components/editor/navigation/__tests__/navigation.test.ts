@@ -65,6 +65,19 @@ vi.mock("../focus-utils", () => ({
   raf2: vi.fn((callback: () => void) => callback()),
 }));
 
+const mockSwitchLanguage = vi.fn();
+vi.mock("@/core/codemirror/language/extension", async (importOriginal) => ({
+  ...(await importOriginal()),
+  switchLanguage: (...args: unknown[]) => mockSwitchLanguage(...args),
+}));
+
+const mockConvertCellToMarkdown = vi.fn();
+vi.mock("@/core/codemirror/language/commands", async (importOriginal) => ({
+  ...(await importOriginal()),
+  convertCellToMarkdown: (...args: unknown[]) =>
+    mockConvertCellToMarkdown(...args),
+}));
+
 // Mock simplifySelection from @codemirror/commands
 const mockSimplifySelection = vi.fn();
 vi.mock("@codemirror/commands", () => ({
@@ -151,6 +164,7 @@ const mockCellActions = MockNotebook.cellActions({
   sendToBottom: vi.fn(),
   updateCellConfig: vi.fn(),
   markTouched: vi.fn(),
+  markUntouched: vi.fn(),
   deleteCell: vi.fn(),
   undoDeleteCell: vi.fn(),
 });
@@ -254,7 +268,48 @@ describe("useCellNavigationProps", () => {
   };
 
   describe("keyboard shortcuts", () => {
-    it("should copy cell when 'c' key is pressed", () => {
+    it("should copy cell when 'y' key is pressed", () => {
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(mockCellId, options),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({ key: "y" });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockCopyCell).toHaveBeenCalledWith([mockCellId]);
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should convert cell to markdown when 'm' key is pressed", () => {
+      const newEditorView = {} as unknown as EditorView;
+      mockEnsureCellEditorView.mockReturnValue(newEditorView);
+
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(mockCellId, options),
+      );
+
+      const mockEvent = Mocks.keyboardEvent({ key: "m" });
+
+      act(() => {
+        result.current.onKeyDown?.(mockEvent);
+      });
+
+      expect(mockConvertCellToMarkdown).toHaveBeenCalledWith(
+        expect.objectContaining({
+          editorView: newEditorView,
+          cellId: mockCellId,
+        }),
+      );
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("should convert cell to code when 'c' key is pressed", () => {
+      const newEditorView = {} as unknown as EditorView;
+      mockEnsureCellEditorView.mockReturnValue(newEditorView);
+
       const { result } = renderWithProvider(() =>
         useCellNavigationProps(mockCellId, options),
       );
@@ -265,7 +320,9 @@ describe("useCellNavigationProps", () => {
         result.current.onKeyDown?.(mockEvent);
       });
 
-      expect(mockCopyCell).toHaveBeenCalledWith([mockCellId]);
+      expect(mockSwitchLanguage).toHaveBeenCalledWith(newEditorView, {
+        language: "python",
+      });
       expect(mockEvent.preventDefault).toHaveBeenCalled();
     });
 
@@ -1248,7 +1305,7 @@ describe("useCellNavigationProps", () => {
       );
 
       const mockEvent = Mocks.keyboardEvent({
-        key: "c",
+        key: "y",
         target: document.createElement("input"), // Input element
       });
 
@@ -1397,7 +1454,7 @@ describe("useCellNavigationProps", () => {
         useCellNavigationProps(cellId2, options),
       );
 
-      const mockEvent = Mocks.keyboardEvent({ key: "c" });
+      const mockEvent = Mocks.keyboardEvent({ key: "y" });
 
       act(() => {
         result.current.onKeyDown?.(mockEvent);

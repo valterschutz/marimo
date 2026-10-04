@@ -42,11 +42,11 @@ import { type CellId, SETUP_CELL_ID } from "@/core/cells/ids";
 import type { CellData } from "@/core/cells/types";
 import { formatEditorViews } from "@/core/codemirror/format";
 import {
+  convertCellToMarkdown,
   getCurrentLanguageAdapter,
   toggleToLanguage,
 } from "@/core/codemirror/language/commands";
 import { switchLanguage } from "@/core/codemirror/language/extension";
-import { MARKDOWN_INITIAL_HIDE_CODE } from "@/core/codemirror/language/languages/markdown";
 import {
   aiFeaturesEnabledAtom,
   appWidthAtom,
@@ -221,22 +221,16 @@ export function useCellActionButtons({ cell, closePopover }: Props) {
           if (!editorView) {
             return;
           }
-          maybeAddMarimoImport({ autoInstantiate, createNewCell: createCell });
-          switchLanguage(editorView, {
-            language: "markdown",
-            keepCodeAsIs: false,
+          await convertCellToMarkdown({
+            editorView,
+            cellId,
+            autoInstantiate,
+            hideCode: config.hide_code ?? false,
+            createNewCell: createCell,
+            updateCellConfig,
+            markUntouched,
+            saveCellConfig,
           });
-          // Code stays visible until the user blurs the cell
-          if (!config.hide_code && MARKDOWN_INITIAL_HIDE_CODE) {
-            await saveCellConfig({
-              configs: { [cellId]: { hide_code: MARKDOWN_INITIAL_HIDE_CODE } },
-            });
-            updateCellConfig({
-              cellId,
-              config: { hide_code: MARKDOWN_INITIAL_HIDE_CODE },
-            });
-            markUntouched({ cellId });
-          }
         },
         hidden: isSetupCell,
       },

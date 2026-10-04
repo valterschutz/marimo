@@ -13,10 +13,15 @@ import { mergeProps, useFocusWithin, useKeyboard } from "react-aria";
 import { DATA_FOR_CELL_ID } from "@/components/data-table/cell-utils";
 import { aiCompletionCellAtom } from "@/core/ai/state";
 import { maybeAddMarimoImport } from "@/core/cells/add-missing-import";
-import { cellIdsAtom, notebookAtom, useCellActions } from "@/core/cells/cells";
+import {
+  cellIdsAtom,
+  ensureCellEditorView,
+  notebookAtom,
+  useCellActions,
+} from "@/core/cells/cells";
 import { useCellFocusActions } from "@/core/cells/focus";
 import type { CellId } from "@/core/cells/ids";
-import { HTMLCellId } from "@/core/cells/ids";
+import { HTMLCellId, SETUP_CELL_ID } from "@/core/cells/ids";
 import {
   clearPendingCutAtom,
   pendingCutCellIdsAtom,
@@ -31,8 +36,11 @@ import {
   isInHelixNormalMode,
   setHelixMode,
 } from "@/core/codemirror/keymaps/helix";
+import { convertCellToMarkdown } from "@/core/codemirror/language/commands";
+import { switchLanguage } from "@/core/codemirror/language/extension";
 import { LanguageAdapters } from "@/core/codemirror/language/LanguageAdapters";
 import {
+  autoInstantiateAtom,
   hotkeysAtom,
   isAiFeatureEnabled,
   keymapPresetAtom,
@@ -211,6 +219,7 @@ export function useCellNavigationProps(
   const deleteCells = useDeleteManyCellsCallback();
   const userConfig = useAtomValue(userConfigAtom);
   const aiFeaturesEnabled = isAiFeatureEnabled(userConfig);
+  const autoInstantiate = useAtomValue(autoInstantiateAtom);
 
   // Wrap selection actions to clear pending cells on any selection change
   const selectionActions = {
@@ -563,6 +572,41 @@ export function useCellNavigationProps(
         // Command mode
         "command.copyCell": addSingleHandler((cellIds) => {
           copyCells(cellIds);
+          return true;
+        }),
+        "command.cellToMarkdown": addSingleHandler((cellIds) => {
+          for (const id of cellIds) {
+            if (id === SETUP_CELL_ID) {
+              continue;
+            }
+            const targetView = ensureCellEditorView(id);
+            if (!targetView) {
+              continue;
+            }
+            const cellConfig = store.get(notebookAtom).cellData[id]?.config;
+            void convertCellToMarkdown({
+              editorView: targetView,
+              cellId: id,
+              autoInstantiate,
+              hideCode: cellConfig?.hide_code ?? false,
+              createNewCell: actions.createNewCell,
+              updateCellConfig: actions.updateCellConfig,
+              markUntouched: actions.markUntouched,
+              saveCellConfig,
+            });
+          }
+          return true;
+        }),
+        "command.cellToCode": addSingleHandler((cellIds) => {
+          for (const id of cellIds) {
+            if (id === SETUP_CELL_ID) {
+              continue;
+            }
+            const targetView = ensureCellEditorView(id);
+            if (targetView) {
+              switchLanguage(targetView, { language: "python" });
+            }
+          }
           return true;
         }),
         "command.cutCell": addSingleHandler((cellIds) => {
