@@ -73,6 +73,17 @@ paints Helix-style. Like the block cursor, it is drawn only while the editor
 has focus.
 _Avoid_: selection band, highlight
 
+**Linewise selection**:
+A selection whose every range runs from a line's start to the start of the
+line after it, or to the document's end for the last line, as built by `x`.
+_Avoid_: line selection (ambiguous with a selection that merely touches a
+line)
+
+**Linewise register**:
+A register whose content was yanked from a linewise selection. `p` and `P`
+paste it as a new line rather than inserting in place.
+_Avoid_: line register
+
 ### Editing
 
 **Completion menu**:

@@ -19,7 +19,7 @@ import {
   runScopeHandlers,
   ViewPlugin,
 } from "@codemirror/view";
-import { commands, helix, type TypableCommand } from "codemirror-helix";
+import { commands, helix, readRegister, type TypableCommand } from "codemirror-helix";
 import {
   focusCell,
   raf2,
@@ -119,6 +119,7 @@ export function helixExtension(): Extension[] {
     selectionMark,
     viewMode,
     longWordMotions,
+    linewisePaste,
   ];
 }
 
@@ -333,7 +334,7 @@ function byLongWord(initial: string): (next: string) => boolean {
 }
 
 /** Like `findClusterBreak`, across line breaks of a whole document. */
-function longWordClusterBreak(doc: Text, pos: number, forward: boolean): number {
+export function longWordClusterBreak(doc: Text, pos: number, forward: boolean): number {
   if (forward ? pos >= doc.length : pos <= 0) {
     return pos;
   }
@@ -343,6 +344,226 @@ function longWordClusterBreak(doc: Text, pos: number, forward: boolean): number 
   }
   return line.from + findClusterBreak(line.text, pos - line.from, forward);
 }
+
+/** A line's start position, or the document's end past its last line. */
+function lineStart(doc: Text, lineNumber: number): number {
+  return lineNumber > doc.lines ? doc.length : doc.line(lineNumber).from;
+}
+
+/**
+ * Whether `range` runs from a line's start to the start of the line after
+ * it, or to the document's end for the last line, as `extend_line` (`x`)
+ * builds it.
+ */
+export function isWholeLineRange(doc: Text, range: SelectionRange): boolean {
+  const startLine = doc.lineAt(range.from).number;
+  const endLine = doc.lineAt(
+    range.empty
+      ? range.to
+      : Math.max(range.from, longWordClusterBreak(doc, range.to, false)),
+  ).number;
+  return (
+    range.from === lineStart(doc, startLine) &&
+    range.to === lineStart(doc, endLine + 1)
+  );
+}
+
+const DEFAULT_REGISTER_KEY = "";
+
+/** The register named by a pending `"<char>` prefix, or the default register. */
+function activeRegisterName(view: EditorView): string {
+  const registerSpan = view.dom.querySelector(
+    ".cm-hx-status-panel > span:nth-child(2)",
+  );
+  const text = registerSpan?.textContent ?? "";
+  return text.startsWith("reg=") ? text.slice(4) : DEFAULT_REGISTER_KEY;
+}
+
+const setLinewiseYank = StateEffect.define<readonly string[]>();
+
+/**
+ * The default register's content, once last yanked from a selection where
+ * every range was a whole-line range. `codemirror-helix` has no linewise
+ * register concept and exports no way to write its own registers, so this
+ * tracks it on the side, for the default (unnamed) register only: `y`
+ * stashes the content it is about to yank here before letting the engine's
+ * own `y` run, and `p`/`P` below trust the stash only while the register's
+ * live content (the one thing `readRegister` can read) still matches it
+ * exactly. See `docs/adr/0001-linewise-paste-side-channel.md`.
+ */
+const linewiseRegisterField = StateField.define<readonly string[] | undefined>({
+  create: () => undefined,
+  update(stashed, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setLinewiseYank)) {
+        stashed = effect.value;
+      }
+    }
+    return stashed;
+  },
+});
+
+/**
+ * Stash the selection's content before a whole-line `y`, so `p`/`P` can
+ * later paste it as a new line even on a cell's last line, which has no
+ * trailing newline of its own to carry. Never prevents the engine's own `y`,
+ * which still runs immediately after and writes its register as usual.
+ */
+function handleLinewiseYank(view: EditorView): boolean {
+  if (!isIdleInHelixNormalMode(view)) {
+    return false;
+  }
+  if (activeRegisterName(view) !== DEFAULT_REGISTER_KEY) {
+    return false;
+  }
+  const { doc, selection } = view.state;
+  if (!selection.ranges.every((range) => isWholeLineRange(doc, range))) {
+    return false;
+  }
+  view.dispatch({
+    effects: setLinewiseYank.of(
+      selection.ranges.map((range) => doc.sliceString(range.from, range.to)),
+    ),
+  });
+  return false;
+}
+
+/** Whether two readings of a register's content are the same text. */
+function registerContentMatches(
+  live: readonly (string | Text)[],
+  stashed: readonly string[],
+): boolean {
+  return (
+    live.length === stashed.length &&
+    live.every((value, i) => value.toString() === stashed[i])
+  );
+}
+
+/**
+ * The stashed linewise content for the active register, but only once its
+ * live content (read back through the one export that allows it) still
+ * matches exactly, proving nothing has overwritten the register since.
+ */
+function stashedLinewiseContent(view: EditorView): readonly string[] | undefined {
+  if (activeRegisterName(view) !== DEFAULT_REGISTER_KEY) {
+    return undefined;
+  }
+  const stashed = view.state.field(linewiseRegisterField);
+  if (!stashed) {
+    return undefined;
+  }
+  // `readRegister`'s declared type is `string`, but only `undefined` (never
+  // `""`) triggers its default-register fallback; this passes the one value
+  // its type forbids but its implementation requires.
+  const live = readRegister(view.state, undefined as unknown as string);
+  return live && registerContentMatches(live, stashed) ? stashed : undefined;
+}
+
+/** Repeat or truncate yanked content to match the number of paste ranges. */
+function fanOutLinewiseContent(
+  rangeCount: number,
+  content: readonly string[],
+): string[] {
+  if (rangeCount <= content.length) {
+    return content.slice(0, rangeCount);
+  }
+  const last = content.at(-1) ?? "";
+  return Array.from({ length: rangeCount }, (_, i) => content[i] ?? last);
+}
+
+/**
+ * Where a linewise paste inserts: `p` always lands below the *whole* line
+ * the selection touches, `P` above it, regardless of which column within
+ * that line the selection sits at. A whole-line range (built by `x`) is
+ * already bounded exactly there, so this is a no-op for it; it only
+ * matters for a plain cursor or a partial selection left after `y`.
+ */
+function linewisePastePosition(
+  doc: Text,
+  range: SelectionRange,
+  before: boolean,
+): number {
+  if (before) {
+    const touched = range.empty ? range.head : range.from;
+    return doc.lineAt(touched).from;
+  }
+  const touched = range.empty ? range.head : range.to - 1;
+  return lineStart(doc, doc.lineAt(touched).number + 1);
+}
+
+/**
+ * A whole line to insert at `pos`, with a synthetic newline added on
+ * whichever side `pos` doesn't already border one. The common case (`pos`
+ * sits between two existing lines) needs neither: the source line's own
+ * trailing newline, stripped and never relied on here, already separated it
+ * from what follows. Only a cell's first or last line, which has no
+ * newline on the outward side, needs one synthesized.
+ */
+function linewiseInsertion(doc: Text, pos: number, lineText: string): string {
+  const pureLine = lineText.endsWith("\n") ? lineText.slice(0, -1) : lineText;
+  const leading = pos > 0 && doc.sliceString(pos - 1, pos) !== "\n";
+  const trailing = pos < doc.length;
+  return (leading ? "\n" : "") + pureLine + (trailing ? "\n" : "");
+}
+
+function pasteLinewise(
+  view: EditorView,
+  content: readonly string[],
+  before: boolean,
+): void {
+  const { doc, selection } = view.state;
+  const yanks = fanOutLinewiseContent(selection.ranges.length, content);
+  const positions = selection.ranges.map((range) =>
+    linewisePastePosition(doc, range, before),
+  );
+  const inserts = positions.map((pos, i) => linewiseInsertion(doc, pos, yanks[i]));
+  const specs = positions.map((pos, i) => ({ from: pos, insert: inserts[i] }));
+  let offset = 0;
+  const ranges = positions.map((pos, i) => {
+    const anchor = pos + offset;
+    offset += inserts[i].length;
+    return EditorSelection.range(anchor, anchor + inserts[i].length);
+  });
+  view.dispatch({
+    changes: view.state.changes(specs),
+    selection: EditorSelection.create(ranges, selection.mainIndex),
+  });
+}
+
+/**
+ * Paste the active register's content as a new line when it was linewise
+ * and is still live (see `stashedLinewiseContent`); otherwise defer to the
+ * engine's own characterwise `p`/`P`.
+ */
+function handleLinewisePaste(view: EditorView, before: boolean): boolean {
+  if (!isIdleInHelixNormalMode(view)) {
+    return false;
+  }
+  const content = stashedLinewiseContent(view);
+  if (!content) {
+    return false;
+  }
+  pasteLinewise(view, content, before);
+  return true;
+}
+
+/**
+ * Linewise registers: `y` on a whole-line selection stashes what it yanked,
+ * and `p`/`P` paste it as a new line, synthesizing the newline the engine's
+ * purely characterwise commands never would. Unnamed register only; see
+ * `docs/adr/0001-linewise-paste-side-channel.md` for the named-register and
+ * count-prefix (`3p`) cuts.
+ */
+const linewisePaste: Extension = [
+  linewiseRegisterField,
+  Prec.high(
+    keymap.of([
+      { key: "y", run: handleLinewiseYank },
+      { key: "p", run: (view) => handleLinewisePaste(view, false) },
+      { key: "P", run: (view) => handleLinewisePaste(view, true) },
+    ]),
+  ),
+];
 
 const BLOCK_CURSOR_CLASS = "cm-hx-block-cursor";
 

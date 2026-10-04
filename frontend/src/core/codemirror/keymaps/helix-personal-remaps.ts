@@ -16,7 +16,6 @@ import {
   EditorSelection,
   type EditorState,
   type Extension,
-  findClusterBreak,
   Prec,
   type SelectionRange,
   StateEffect,
@@ -31,7 +30,11 @@ import {
   keymap,
   WidgetType,
 } from "@codemirror/view";
-import { isIdleInHelixNormalMode, isInHelixSelectMode } from "./helix";
+import {
+  isIdleInHelixNormalMode,
+  isInHelixSelectMode,
+  longWordClusterBreak as clusterBreak,
+} from "./helix";
 
 export function helixPersonalRemaps(): Extension {
   return [
@@ -181,18 +184,6 @@ function trimSelections(view: EditorView): void {
     // The engine's own representation of a one-character cursor
     selection: EditorSelection.range(clusterBreak(doc, cursor, true), cursor),
   });
-}
-
-/** Like `findClusterBreak`, across line breaks of a whole document. */
-function clusterBreak(doc: Text, pos: number, forward: boolean): number {
-  if (forward ? pos >= doc.length : pos <= 0) {
-    return pos;
-  }
-  const line = doc.lineAt(pos);
-  if (pos === (forward ? line.to : line.from)) {
-    return forward ? pos + 1 : pos - 1;
-  }
-  return line.from + findClusterBreak(line.text, pos - line.from, forward);
 }
 
 /** The character the engine draws the block cursor on. */

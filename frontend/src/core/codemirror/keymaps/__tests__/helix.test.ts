@@ -19,6 +19,7 @@ import {
   helixExtension,
   hideAiEditTriggerInHelixNormalMode,
   isInHelixNormalMode,
+  isWholeLineRange,
   setHelixMode,
 } from "../helix";
 
@@ -702,5 +703,109 @@ describe("helixExtension long word motions", () => {
         runScopeHandlers(view, new KeyboardEvent("keydown", { key }), "editor"),
       ).toBe(false);
     }
+  });
+});
+
+describe("helixExtension linewise paste", () => {
+  function text(view: EditorView) {
+    return view.state.doc.toString();
+  }
+
+  it("duplicates a cell's last line onto a new line below", async () => {
+    const view = await createFocusedView("a = 1\nb = 2\nc = 3");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "x");
+    press(view, "y");
+    press(view, "p");
+    expect(text(view)).toBe("a = 1\nb = 2\nc = 3\nc = 3");
+  });
+
+  it("still pastes as a new line after an intervening cursor move", async () => {
+    const view = await createFocusedView("a = 1\nb = 2\nc = 3");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "x");
+    press(view, "y");
+    press(view, "g");
+    press(view, "g");
+    press(view, "p");
+    expect(text(view)).toBe("a = 1\nc = 3\nb = 2\nc = 3");
+  });
+
+  it("inserts a synthetic newline for P before an earlier line too", async () => {
+    const view = await createFocusedView("a = 1\nb = 2\nc = 3");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "x");
+    press(view, "y");
+    press(view, "g");
+    press(view, "g");
+    press(view, "P");
+    expect(text(view)).toBe("c = 3\na = 1\nb = 2\nc = 3");
+  });
+
+  it("does not treat a mix of whole-line and partial ranges as linewise", async () => {
+    const view = await createFocusedView("a = 1\nb = 2");
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.range(0, 6),
+        EditorSelection.range(7, 8),
+      ]),
+    });
+    press(view, "y");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "p");
+    // Falls through to the engine's own characterwise paste: the first
+    // yanked range ("a = 1\n") pastes in full at the only remaining cursor.
+    expect(text(view)).toBe("a = 1\nb = 2a = 1\n");
+  });
+
+  it("falls back to characterwise paste once the register is overwritten", async () => {
+    const view = await createFocusedView("a = 1\nb = 2\nc = 3");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "x");
+    press(view, "y");
+    // An unrelated characterwise yank overwrites the register.
+    view.dispatch({ selection: EditorSelection.range(0, 1) });
+    press(view, "y");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "p");
+    expect(text(view)).toBe("a = 1\nb = 2\nc = 3a");
+  });
+
+  // The "+" (system clipboard) and named (`"a`, etc.) registers are excluded
+  // by construction (see `docs/adr/0001-linewise-paste-side-channel.md"`),
+  // but exercising that end-to-end would mean selecting one via `"+`/`"a`,
+  // which the engine only recognizes through its real `inputHandler` (text
+  // input events) rather than the `keydown` events `press` simulates here.
+  // The status-panel register span is the one thing our own code actually
+  // reads, so setting its text directly exercises the real branch.
+
+  it.each(["+", "a"])(
+    'falls back to characterwise paste for register "%s"',
+    async (register) => {
+      const view = await createFocusedView("a = 1\nb = 2\nc = 3");
+      view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+      press(view, "x");
+      const registerSpan = view.dom.querySelector(
+        ".cm-hx-status-panel > span:nth-child(2)",
+      );
+      if (!registerSpan) {
+        throw new Error("register span not mounted");
+      }
+      registerSpan.textContent = `reg=${register}`;
+      press(view, "y");
+      registerSpan.textContent = "";
+      view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+      press(view, "p");
+      // No synthesized newline: the stash was never written for this
+      // register, so the engine's own characterwise paste ran instead.
+      expect(text(view)).toBe("a = 1\nb = 2\nc = 3c = 3");
+    },
+  );
+
+  it("only accepts whole-line ranges below the last line too", () => {
+    const doc = EditorState.create({ doc: "a = 1\nb = 2\nc = 3" }).doc;
+    expect(isWholeLineRange(doc, EditorSelection.range(12, 17))).toBe(true);
+    expect(isWholeLineRange(doc, EditorSelection.range(12, 16))).toBe(false);
+    expect(isWholeLineRange(doc, EditorSelection.range(0, 6))).toBe(true);
   });
 });
