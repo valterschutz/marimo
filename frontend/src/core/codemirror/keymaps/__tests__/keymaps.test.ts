@@ -24,11 +24,14 @@ import {
 import { isInHelixNormalMode, setHelixMode } from "../helix";
 import { KEYMAP_PRESETS, keymapBundle, visibleForTesting } from "../keymaps";
 
-vi.mock("@/components/editor/navigation/focus-utils", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  focusCell: vi.fn(),
-  raf2: (callback: () => void) => callback(),
-}));
+vi.mock(
+  "@/components/editor/navigation/focus-utils",
+  async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    focusCell: vi.fn(),
+    raf2: (callback: () => void) => callback(),
+  }),
+);
 
 const { defaultKeymap, defaultVimKeymap, overrideKeymap, OVERRIDDEN_COMMANDS } =
   visibleForTesting;
@@ -90,29 +93,39 @@ describe("keymaps", () => {
 });
 
 describe("selection mark", () => {
-  function markedSelection(preset: KeymapConfig["preset"]) {
+  async function markedSelection(preset: KeymapConfig["preset"]) {
     const view = new EditorView({
       state: EditorState.create({
         doc: "print(1)",
-        selection: EditorSelection.range(0, 5),
-        extensions: keymapBundle({ preset, overrides: {} }, HotkeyProvider.create()),
+        extensions: keymapBundle(
+          { preset, overrides: {} },
+          HotkeyProvider.create(),
+        ),
       }),
       parent: document.body,
     });
+    // The helix preset draws the mark only while the editor has focus.
+    view.focus();
+    await vi.waitFor(() =>
+      expect(view.dom.classList.contains("cm-focused")).toBe(true),
+    );
+    // After the helix engine's own mount-time cursor selection.
+    view.dispatch({ selection: EditorSelection.range(0, 5) });
     const marked = view.contentDOM.querySelector(".cm-hx-selection");
     view.destroy();
     return marked?.textContent ?? null;
   }
 
-  it("is drawn by the helix preset", () => {
-    expect(markedSelection("helix")).toBe("print");
+  it("is drawn by the helix preset", async () => {
+    expect(await markedSelection("helix")).toBe("print");
   });
 
-  it.each(
-    KEYMAP_PRESETS.filter((preset) => preset !== "helix"),
-  )("is not drawn by the %s preset", (preset) => {
-    expect(markedSelection(preset)).toBeNull();
-  });
+  it.each(KEYMAP_PRESETS.filter((preset) => preset !== "helix"))(
+    "is not drawn by the %s preset",
+    async (preset) => {
+      expect(await markedSelection(preset)).toBeNull();
+    },
+  );
 });
 
 describe("helix keymap bundle", () => {
@@ -167,9 +180,7 @@ describe("helix keymap bundle", () => {
     expect(isInHelixNormalMode(view)).toBe(false);
     // The engine only drops its block cursor in insert mode when the insert
     // cursor is configured as a bar.
-    expect(view.scrollDOM.classList.contains("cm-hx-block-cursor")).toBe(
-      false,
-    );
+    expect(view.scrollDOM.classList.contains("cm-hx-block-cursor")).toBe(false);
 
     press(view, "Escape");
     expect(isInHelixNormalMode(view)).toBe(true);

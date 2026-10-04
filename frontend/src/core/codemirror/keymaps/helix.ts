@@ -1,12 +1,13 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
-import { type Extension, StateField } from "@codemirror/state";
+import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import {
   type Command,
   Decoration,
   EditorView,
   type KeyBinding,
   runScopeHandlers,
+  ViewPlugin,
 } from "@codemirror/view";
 import { commands, helix, type TypableCommand } from "codemirror-helix";
 import { focusCell, raf2 } from "@/components/editor/navigation/focus-utils";
@@ -77,27 +78,76 @@ export function helixExtension(): Extension[] {
     blockCursorTheme,
     helix({ config: { "editor.cursor-shape.insert": "bar" } }),
     commands.of(typableCommands()),
+    focusedField,
+    blockCursorOnlyWhileFocused,
     selectionMark,
   ];
 }
+
+const setFocusedEffect = StateEffect.define<boolean>();
+
+/** Whether the editor has focus, for marks drawn only while it does. */
+const focusedField = StateField.define<boolean>({
+  create: () => false,
+  update: (focused, tr) =>
+    tr.effects.reduce(
+      (value, effect) => (effect.is(setFocusedEffect) ? effect.value : value),
+      focused,
+    ),
+  provide: () =>
+    EditorView.focusChangeEffect.of((_state, focusing) =>
+      setFocusedEffect.of(focusing),
+    ),
+});
+
+const BLOCK_CURSOR_CLASS = "cm-hx-block-cursor";
+
+/**
+ * Draw the block cursor only while the editor has focus, like CodeMirror's
+ * own caret, so unfocused cells show no cursor.
+ *
+ * Every cursor style, the engine's and custom CSS alike, hangs off a class
+ * the engine puts on the scroller on mount and toggles on mode changes. This
+ * resyncs the class after the engine on every update. Must come after the
+ * engine.
+ */
+const blockCursorOnlyWhileFocused: Extension = [
+  ViewPlugin.define((view) => {
+    view.scrollDOM.classList.toggle(BLOCK_CURSOR_CLASS, view.hasFocus);
+    return {};
+  }),
+  EditorView.updateListener.of(({ view }) => {
+    view.scrollDOM.classList.toggle(
+      BLOCK_CURSOR_CLASS,
+      view.hasFocus && isInHelixNormalMode(view),
+    );
+  }),
+];
 
 const selectionMarkDecoration = Decoration.mark({ class: "cm-hx-selection" });
 
 /**
  * Mark every non-empty selection range on the text itself, in every editor
- * mode, with a class that carries no styling of its own.
+ * mode, with a class that carries no styling of its own. Like the block
+ * cursor, the marks are drawn only while the editor has focus.
  *
  * CodeMirror draws selections as a band behind the text, which an opaque
  * active-line background hides and which cannot recolour the selected text.
  * The mark lets custom CSS paint selections the way Helix does.
  */
-const selectionMark = EditorView.decorations.compute(["selection"], (state) =>
-  Decoration.set(
-    state.selection.ranges
-      .filter((range) => !range.empty)
-      .map((range) => selectionMarkDecoration.range(range.from, range.to)),
-    true,
-  ),
+const selectionMark = EditorView.decorations.compute(
+  ["selection", focusedField],
+  (state) =>
+    state.field(focusedField)
+      ? Decoration.set(
+          state.selection.ranges
+            .filter((range) => !range.empty)
+            .map((range) =>
+              selectionMarkDecoration.range(range.from, range.to),
+            ),
+          true,
+        )
+      : Decoration.none,
 );
 
 /**

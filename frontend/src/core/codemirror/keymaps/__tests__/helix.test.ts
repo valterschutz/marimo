@@ -7,9 +7,12 @@ import {
 } from "@codemirror/state";
 import { EditorView, runScopeHandlers, showPanel } from "@codemirror/view";
 import { python } from "@codemirror/lang-python";
-import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import {
+  defaultHighlightStyle,
+  syntaxHighlighting,
+} from "@codemirror/language";
 import { aiExtension } from "@marimo-team/codemirror-ai";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { darkTheme } from "../../theme/dark";
 import { lightTheme } from "../../theme/light";
 import {
@@ -30,6 +33,24 @@ function createView(doc: string, extensions: Extension = []) {
     parent: document.body,
   });
   views.push(view);
+  return view;
+}
+
+/** Focus or blur the editor and wait for CodeMirror to apply the change. */
+async function setFocus(view: EditorView, focused: boolean) {
+  if (focused) {
+    view.focus();
+  } else {
+    view.contentDOM.blur();
+  }
+  await vi.waitFor(() =>
+    expect(view.dom.classList.contains("cm-focused")).toBe(focused),
+  );
+}
+
+async function createFocusedView(doc: string, extensions: Extension = []) {
+  const view = createView(doc, extensions);
+  await setFocus(view, true);
   return view;
 }
 
@@ -241,7 +262,7 @@ describe("helixExtension chrome", () => {
 
 describe("helixExtension block cursor", () => {
   function createHighlightedView(doc: string, theme: Extension) {
-    return createView(doc, [
+    return createFocusedView(doc, [
       python(),
       syntaxHighlighting(defaultHighlightStyle),
       theme,
@@ -278,13 +299,13 @@ describe("helixExtension block cursor", () => {
   it.each([
     { name: "light", theme: lightTheme, caret: "#000000" },
     { name: "dark", theme: darkTheme, caret: "#528bff" },
-  ])("uses the $name theme's caret colour", ({ theme, caret }) => {
-    const view = createHighlightedView("print(1)", theme);
+  ])("uses the $name theme's caret colour", async ({ theme, caret }) => {
+    const view = await createHighlightedView("print(1)", theme);
     expect(resolvedColor(cursor(view), "background-color")).toBe(caret);
   });
 
-  it("can be recoloured by a custom theme", () => {
-    const view = createHighlightedView(
+  it("can be recoloured by a custom theme", async () => {
+    const view = await createHighlightedView(
       "print(1)",
       EditorView.theme({
         "&": { "--cm-caret-color": "#89b4fa", "--cm-background": "#1e1e2e" },
@@ -293,9 +314,9 @@ describe("helixExtension block cursor", () => {
     expect(resolvedColor(cursor(view), "background-color")).toBe("#89b4fa");
   });
 
-  it("inverts the character under it, syntax tokens included", () => {
+  it("inverts the character under it, syntax tokens included", async () => {
     // The cursor starts on `1`, a highlighted number token.
-    const view = createHighlightedView(
+    const view = await createHighlightedView(
       "1 + 2",
       EditorView.theme({ "&": { "--cm-background": "#1e1e2e" } }),
     );
@@ -306,6 +327,23 @@ describe("helixExtension block cursor", () => {
     }
     expect(resolvedColor(mark, "color")).toBe("#1e1e2e");
     expect(resolvedColor(token, "color")).toBe("#1e1e2e");
+  });
+
+  it("is not drawn while the editor is unfocused", () => {
+    const view = createView("print(1)", lightTheme);
+    expect(resolvedColor(cursor(view), "background-color")).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+  });
+
+  it("is drawn only while the editor has focus", async () => {
+    const view = await createHighlightedView("print(1)", lightTheme);
+    await setFocus(view, false);
+    expect(resolvedColor(cursor(view), "background-color")).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+    await setFocus(view, true);
+    expect(resolvedColor(cursor(view), "background-color")).toBe("#000000");
   });
 });
 
@@ -335,22 +373,22 @@ describe("helixExtension selection mark", () => {
 
   const doc = "a = 1\nb = 2\nc = 3\nd = 4";
 
-  it("marks the line selected by x", () => {
-    const view = createView(doc);
+  it("marks the line selected by x", async () => {
+    const view = await createFocusedView(doc);
     press(view, "x");
     expect(markedText(view)).toEqual(["a = 1"]);
   });
 
-  it("marks a multi-line selection", () => {
-    const view = createView(doc);
+  it("marks a multi-line selection", async () => {
+    const view = await createFocusedView(doc);
     press(view, "x");
     press(view, "x");
     press(view, "x");
     expect(markedText(view)).toEqual(["a = 1", "b = 2", "c = 3"]);
   });
 
-  it("marks a multi-line selection extended in editor select mode", () => {
-    const view = createView(doc);
+  it("marks a multi-line selection extended in editor select mode", async () => {
+    const view = await createFocusedView(doc);
     press(view, "l");
     press(view, "v");
     // Goto last line; only editor select mode keeps the anchor on line 1.
@@ -359,8 +397,8 @@ describe("helixExtension selection mark", () => {
     expect(markedText(view)).toEqual([" = 1", "b = 2", "c = 3", "d"]);
   });
 
-  it("marks every range of a multi-cursor selection", () => {
-    const view = createView(doc);
+  it("marks every range of a multi-cursor selection", async () => {
+    const view = await createFocusedView(doc);
     press(view, "x");
     press(view, "x");
     press(view, "s", { altKey: true });
@@ -368,8 +406,8 @@ describe("helixExtension selection mark", () => {
     expect(markedText(view)).toEqual(["a = 1", "b = 2"]);
   });
 
-  it("marks a pointer selection", () => {
-    const view = createView(doc);
+  it("marks a pointer selection", async () => {
+    const view = await createFocusedView(doc);
     view.dispatch({
       selection: EditorSelection.range(6, 11),
       userEvent: "select.pointer",
@@ -377,8 +415,8 @@ describe("helixExtension selection mark", () => {
     expect(markedText(view)).toEqual(["b = 2"]);
   });
 
-  it("marks nothing for a collapsed cursor in editor insert mode", () => {
-    const view = createView(doc);
+  it("marks nothing for a collapsed cursor in editor insert mode", async () => {
+    const view = await createFocusedView(doc);
     press(view, "i");
     view.dispatch({ selection: EditorSelection.cursor(2) });
     expect(isInHelixNormalMode(view)).toBe(false);
@@ -388,8 +426,8 @@ describe("helixExtension selection mark", () => {
   it.each([
     { name: "light", theme: lightTheme },
     { name: "dark", theme: darkTheme },
-  ])("has no styling of its own in the $name theme", ({ theme }) => {
-    const view = createView(doc, theme);
+  ])("has no styling of its own in the $name theme", async ({ theme }) => {
+    const view = await createFocusedView(doc, theme);
     view.dispatch({ selection: EditorSelection.range(6, 11) });
     const mark = view.contentDOM.querySelector(".cm-hx-selection");
     if (!mark?.parentElement) {
@@ -398,5 +436,20 @@ describe("helixExtension selection mark", () => {
     const style = getComputedStyle(mark);
     expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
     expect(style.color).toBe(getComputedStyle(mark.parentElement).color);
+  });
+
+  it("marks nothing while the editor is unfocused", () => {
+    const view = createView(doc);
+    press(view, "x");
+    expect(markedText(view)).toEqual([]);
+  });
+
+  it("marks the kept selection again when the editor is refocused", async () => {
+    const view = await createFocusedView(doc);
+    press(view, "x");
+    await setFocus(view, false);
+    expect(markedText(view)).toEqual([]);
+    await setFocus(view, true);
+    expect(markedText(view)).toEqual(["a = 1"]);
   });
 });

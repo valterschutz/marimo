@@ -50,6 +50,17 @@ The engine's panel under an editor that hosts the `:` command prompt and
 the `/` search prompt.
 _Avoid_: command line, prompt panel
 
+**Block cursor**:
+The engine's one-character cursor mark in editor normal and select mode. It
+is drawn only while the editor has focus.
+_Avoid_: caret (that is the insert-mode bar)
+
+**Selection mark**:
+The class on the text of every non-empty selection range, which custom CSS
+paints Helix-style. Like the block cursor, it is drawn only while the editor
+has focus.
+_Avoid_: selection band, highlight
+
 ### Cells
 
 **Hidden code**:
