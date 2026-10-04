@@ -617,3 +617,90 @@ describe("helixExtension view mode", () => {
     ).toBe(false);
   });
 });
+
+describe("helixExtension long word motions", () => {
+  function text(view: EditorView) {
+    return view.state.doc.toString();
+  }
+
+  function cursor(view: EditorView) {
+    return view.state.selection.main.head > view.state.selection.main.anchor
+      ? view.state.selection.main.head - 1
+      : view.state.selection.main.head;
+  }
+
+  it("W moves to the end of a WORD, punctuation included", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    press(view, "W");
+    expect(cursor(view)).toBe(text(view).indexOf(")"));
+  });
+
+  it("W from inside a WORD still lands on its end", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    view.dispatch({ selection: EditorSelection.cursor(1) });
+    press(view, "W");
+    expect(cursor(view)).toBe(text(view).indexOf(")"));
+  });
+
+  it("a second W reaches the following WORD", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    press(view, "W");
+    press(view, "W");
+    expect(cursor(view)).toBe(text(view).length - 1);
+  });
+
+  it("W crosses line breaks", async () => {
+    const view = await createFocusedView("foo\nbar");
+    press(view, "W");
+    press(view, "W");
+    expect(cursor(view)).toBe(text(view).length - 1);
+  });
+
+  it("E moves to the end of the current WORD", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    press(view, "E");
+    expect(cursor(view)).toBe(text(view).indexOf(")"));
+  });
+
+  it("B moves to the start of the previous WORD", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    view.dispatch({ selection: EditorSelection.cursor(text(view).length) });
+    press(view, "B");
+    expect(cursor(view)).toBe(text(view).indexOf("baz"));
+  });
+
+  it("extends the selection in select mode", async () => {
+    const view = await createFocusedView("foo.bar() baz");
+    press(view, "v");
+    press(view, "W");
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(text(view).indexOf(")") + 1);
+  });
+
+  it("moves every range of a multi-cursor selection", async () => {
+    const view = await createFocusedView("foo bar\nbaz qux");
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.cursor(0),
+        EditorSelection.cursor(8),
+      ]),
+    });
+    press(view, "W");
+    expect(
+      view.state.selection.ranges.map((range) =>
+        range.head > range.anchor ? range.head - 1 : range.head,
+      ),
+    ).toEqual([text(view).indexOf("foo") + 2, text(view).indexOf("baz") + 2]);
+  });
+
+  it("leaves W, B and E to self-insertion in editor insert mode", async () => {
+    const view = await createFocusedView("foo");
+    setHelixMode(view, "insert");
+
+    for (const key of ["W", "B", "E"]) {
+      expect(
+        runScopeHandlers(view, new KeyboardEvent("keydown", { key }), "editor"),
+      ).toBe(false);
+    }
+  });
+});

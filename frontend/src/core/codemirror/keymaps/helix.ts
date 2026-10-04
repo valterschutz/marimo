@@ -1,10 +1,14 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
 import {
+  EditorSelection,
   type Extension,
+  findClusterBreak,
   Prec,
+  type SelectionRange,
   StateEffect,
   StateField,
+  type Text,
 } from "@codemirror/state";
 import {
   type Command,
@@ -35,6 +39,12 @@ import { cellActionsState, cellIdState } from "../cells/state";
 export function isInHelixNormalMode(view: EditorView): boolean {
   const mode = view.dom.querySelector(".cm-hx-status-panel > span");
   return mode?.textContent !== "INS";
+}
+
+/** Whether the Helix engine is in select mode, extending its selection. */
+export function isInHelixSelectMode(view: EditorView): boolean {
+  const mode = view.dom.querySelector(".cm-hx-status-panel > span");
+  return mode?.textContent === "SEL";
 }
 
 /**
@@ -108,6 +118,7 @@ export function helixExtension(): Extension[] {
     blockCursorOnlyWhileFocused,
     selectionMark,
     viewMode,
+    longWordMotions,
   ];
 }
 
@@ -201,6 +212,136 @@ function alignCursorLine(
     y: alignment,
     yMargin: SCROLLOFF_LINES * view.defaultLineHeight,
   });
+}
+
+/**
+ * Helix's `W`, `B` and `E`, which the engine lacks: `W` and `E` move to the
+ * start and end of the next WORD, `B` to the start of the previous one. A
+ * WORD is a run of non-blank characters, wider than the engine's own `w`/
+ * `b`/`e`, which also break on punctuation.
+ *
+ * `codemirror-helix` exports no word motions to extend, so this is a port of
+ * its own `w`/`b`/`e`, whose shared implementation also treats `e` as a copy
+ * of `w`. Engine and CodeMirror ranges both use Helix's gap-based anchor and
+ * head; see `helix-personal-remaps.ts` for the same convention.
+ */
+const longWordMotions: Extension = keymap.of([
+  { key: "W", run: (view) => moveByLongWord(view, true) },
+  { key: "B", run: (view) => moveByLongWord(view, false) },
+  { key: "E", run: (view) => moveByLongWord(view, true) },
+]);
+
+function moveByLongWord(view: EditorView, forward: boolean): boolean {
+  if (!isInHelixNormalMode(view)) {
+    return false;
+  }
+  const { selection } = view.state;
+  const extend = isInHelixSelectMode(view);
+  view.dispatch({
+    selection: EditorSelection.create(
+      selection.ranges.map((range) =>
+        moveRangeByLongWord(view, range, forward, extend),
+      ),
+      selection.mainIndex,
+    ),
+    scrollIntoView: true,
+  });
+  return true;
+}
+
+/** Whether `range` is already a single character wide, like a block cursor. */
+function isLongWordRangeAtomic(doc: Text, range: SelectionRange): boolean {
+  return (
+    range.empty || longWordClusterBreak(doc, range.from, true) === range.to
+  );
+}
+
+function moveRangeByLongWord(
+  view: EditorView,
+  range: SelectionRange,
+  forward: boolean,
+  extend: boolean,
+): SelectionRange {
+  const doc = view.state.doc;
+  const rangeForward = isLongWordRangeForward(doc, range);
+  const atomic = isLongWordRangeAtomic(doc, range);
+  const headCursor = atomic
+    ? range
+    : EditorSelection.range(
+        longWordClusterBreak(doc, range.head, !rangeForward),
+        range.head,
+      );
+  const anchorCursor = atomic
+    ? range
+    : EditorSelection.range(
+        range.anchor,
+        longWordClusterBreak(doc, range.anchor, rangeForward),
+      );
+  let nextAnchor = forward ? headCursor.from : headCursor.to;
+  let nextHead = moveByLongWordGroup(view, nextAnchor, forward);
+  const oldEnd = forward ? headCursor.to : headCursor.from;
+  if (nextHead === oldEnd) {
+    nextAnchor = nextHead;
+    nextHead = moveByLongWordGroup(view, nextAnchor, forward);
+  }
+  const nextRange = EditorSelection.range(nextAnchor, nextHead);
+  if (!extend) {
+    return nextRange;
+  }
+  const nextHeadCursor = isLongWordRangeAtomic(doc, nextRange)
+    ? nextRange
+    : EditorSelection.range(
+        longWordClusterBreak(doc, nextRange.head, !forward),
+        nextRange.head,
+      );
+  return nextHeadCursor.to < anchorCursor.from
+    ? EditorSelection.range(anchorCursor.to, nextHeadCursor.from)
+    : EditorSelection.range(anchorCursor.from, nextHeadCursor.to);
+}
+
+/** Helix's direction for a range; a one-character cursor is forward. */
+function isLongWordRangeForward(doc: Text, range: SelectionRange): boolean {
+  return (
+    range.head > range.from ||
+    longWordClusterBreak(doc, range.from, true) >= range.to
+  );
+}
+
+function moveByLongWordGroup(
+  view: EditorView,
+  pos: number,
+  forward: boolean,
+): number {
+  return view.moveByChar(EditorSelection.cursor(pos), forward, byLongWord).head;
+}
+
+/**
+ * A WORD boundary predicate for `EditorView.moveByChar`: a run of blank
+ * characters (crossed as `\n` between lines) followed by a run of non-blank
+ * ones is a single group, unlike the engine's own word/punctuation/blank
+ * categories.
+ */
+function byLongWord(initial: string): (next: string) => boolean {
+  let blank = /\s/.test(initial);
+  return (next) => {
+    const nextBlank = /\s/.test(next);
+    if (blank) {
+      blank = nextBlank;
+    }
+    return blank === nextBlank;
+  };
+}
+
+/** Like `findClusterBreak`, across line breaks of a whole document. */
+function longWordClusterBreak(doc: Text, pos: number, forward: boolean): number {
+  if (forward ? pos >= doc.length : pos <= 0) {
+    return pos;
+  }
+  const line = doc.lineAt(pos);
+  if (pos === (forward ? line.to : line.from)) {
+    return forward ? pos + 1 : pos - 1;
+  }
+  return line.from + findClusterBreak(line.text, pos - line.from, forward);
 }
 
 const BLOCK_CURSOR_CLASS = "cm-hx-block-cursor";

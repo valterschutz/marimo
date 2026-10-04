@@ -31,7 +31,7 @@ import {
   keymap,
   WidgetType,
 } from "@codemirror/view";
-import { isIdleInHelixNormalMode } from "./helix";
+import { isIdleInHelixNormalMode, isInHelixSelectMode } from "./helix";
 
 export function helixPersonalRemaps(): Extension {
   return [
@@ -61,11 +61,6 @@ function remapBindings(): KeyBinding[] {
       return true;
     },
   }));
-}
-
-function isInHelixSelectMode(view: EditorView): boolean {
-  const mode = view.dom.querySelector(".cm-hx-status-panel > span");
-  return mode?.textContent === "SEL";
 }
 
 /**
