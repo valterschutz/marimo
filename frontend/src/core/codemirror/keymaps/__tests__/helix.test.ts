@@ -453,3 +453,27 @@ describe("helixExtension selection mark", () => {
     expect(markedText(view)).toEqual(["a = 1"]);
   });
 });
+
+describe("helixExtension selection band", () => {
+  function selectionLayer(view: EditorView) {
+    const layer = view.dom.querySelector(".cm-selectionLayer");
+    if (!layer) {
+      throw new Error("Selection layer not mounted");
+    }
+    return layer;
+  }
+
+  it("is not drawn while the editor is unfocused", () => {
+    const view = createView("print(1)");
+    expect(getComputedStyle(selectionLayer(view)).display).toBe("none");
+  });
+
+  it("is drawn again when the editor is refocused", async () => {
+    const view = await createFocusedView("print(1)");
+    expect(getComputedStyle(selectionLayer(view)).display).not.toBe("none");
+    await setFocus(view, false);
+    expect(getComputedStyle(selectionLayer(view)).display).toBe("none");
+    await setFocus(view, true);
+    expect(getComputedStyle(selectionLayer(view)).display).not.toBe("none");
+  });
+});

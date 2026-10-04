@@ -76,6 +76,7 @@ export function helixExtension(): Extension[] {
     // win over the engine's equally specific ones.
     hidePanelsTheme,
     blockCursorTheme,
+    hideUnfocusedSelectionTheme,
     helix({ config: { "editor.cursor-shape.insert": "bar" } }),
     commands.of(typableCommands()),
     focusedField,
@@ -185,6 +186,18 @@ const hidePanelsTheme = EditorView.theme({
  * specificity, winning on stylesheet order, so custom CSS can still override
  * them.
  */
+/**
+ * Hide CodeMirror's selection band while the editor is unfocused, like the
+ * block cursor and selection marks. CodeMirror only dims it, which leaves a
+ * box on the first character of every cell from the engine's mount-time
+ * cursor selection.
+ */
+const hideUnfocusedSelectionTheme = EditorView.theme({
+  "&:not(.cm-focused) .cm-selectionLayer": {
+    display: "none",
+  },
+});
+
 const blockCursorTheme = EditorView.theme({
   ".cm-hx-block-cursor .cm-hx-cursor": {
     backgroundColor: "var(--cm-caret-color, #ccc)",
