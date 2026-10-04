@@ -168,11 +168,16 @@ const hidePanelsTheme = EditorView.theme({
     display: "none",
   },
   // The container would otherwise keep its border with nothing inside. Other
-  // bottom panels keep it visible. No commas: `EditorView.theme` splits
-  // selectors on them, even inside `:not()`.
+  // bottom panels keep it. CodeMirror reads the container's position as a
+  // bottom scroll margin, so it must stay laid out right under the text: a
+  // `display: none` container reports the top of the viewport, and a sticky
+  // one can stick above the window's bottom edge, and either makes scrolling
+  // into view overshoot. No commas: `EditorView.theme` splits selectors on
+  // them, even inside `:not()`.
   ".cm-panels-bottom:not(:has(> :not(.cm-hx-status-panel):not(.cm-hx-command-panel))):not(:has(.cm-hx-command-input))":
     {
-      display: "none",
+      borderTopWidth: "0",
+      position: "static",
     },
 });
 

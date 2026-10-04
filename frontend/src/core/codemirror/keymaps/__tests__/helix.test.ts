@@ -62,6 +62,24 @@ function press(view: EditorView, key: string, init?: KeyboardEventInit) {
   );
 }
 
+/**
+ * Whether the bottom panels' container is collapsed: laid out in the flow
+ * under the text, since CodeMirror measures its position for scroll margins,
+ * but without a border.
+ */
+function isPanelContainerCollapsed(view: EditorView) {
+  const container = view.dom.querySelector(".cm-panels-bottom");
+  if (!container) {
+    throw new Error(".cm-panels-bottom not mounted");
+  }
+  const style = getComputedStyle(container);
+  return (
+    style.display !== "none" &&
+    style.position === "static" &&
+    style.borderTopWidth === "0px"
+  );
+}
+
 /** Whether the element matching `selector` is hidden by a stylesheet. */
 function isHidden(view: EditorView, selector: string) {
   const element = view.dom.querySelector(selector);
@@ -220,11 +238,11 @@ describe("helixExtension chrome", () => {
   it("collapses the command panel unless a prompt is open", () => {
     const view = createView("print(1)");
     // The panels' container too, which would otherwise keep its border.
-    expect(isHidden(view, ".cm-panels-bottom")).toBe(true);
+    expect(isPanelContainerCollapsed(view)).toBe(true);
     expect(isHidden(view, ".cm-hx-command-panel")).toBe(true);
 
     press(view, ":");
-    expect(isHidden(view, ".cm-panels-bottom")).toBe(false);
+    expect(isPanelContainerCollapsed(view)).toBe(false);
     expect(isHidden(view, ".cm-hx-command-panel")).toBe(false);
 
     const input = view.dom.querySelector("input");
@@ -232,7 +250,7 @@ describe("helixExtension chrome", () => {
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     expect(view.dom.querySelector("input")).toBeNull();
-    expect(isHidden(view, ".cm-panels-bottom")).toBe(true);
+    expect(isPanelContainerCollapsed(view)).toBe(true);
     expect(isHidden(view, ".cm-hx-command-panel")).toBe(true);
   });
 
@@ -240,7 +258,7 @@ describe("helixExtension chrome", () => {
     const view = createView("print(1)", [
       showPanel.of(() => ({ dom: document.createElement("div"), top: false })),
     ]);
-    expect(isHidden(view, ".cm-panels-bottom")).toBe(false);
+    expect(isPanelContainerCollapsed(view)).toBe(false);
     expect(isHidden(view, ".cm-hx-command-panel")).toBe(true);
   });
 
