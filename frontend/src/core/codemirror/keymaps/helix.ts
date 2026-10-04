@@ -3,6 +3,7 @@
 import { type Extension, StateField } from "@codemirror/state";
 import {
   type Command,
+  Decoration,
   EditorView,
   type KeyBinding,
   runScopeHandlers,
@@ -70,10 +71,79 @@ export function helixExtension(): Extension[] {
         }
       },
     }),
+    // Ahead of the engine, so their rules land later in the stylesheet and
+    // win over the engine's equally specific ones.
+    hidePanelsTheme,
+    blockCursorTheme,
     helix({ config: { "editor.cursor-shape.insert": "bar" } }),
     commands.of(typableCommands()),
+    selectionMark,
   ];
 }
+
+const selectionMarkDecoration = Decoration.mark({ class: "cm-hx-selection" });
+
+/**
+ * Mark every non-empty selection range on the text itself, in every editor
+ * mode, with a class that carries no styling of its own.
+ *
+ * CodeMirror draws selections as a band behind the text, which an opaque
+ * active-line background hides and which cannot recolour the selected text.
+ * The mark lets custom CSS paint selections the way Helix does.
+ */
+const selectionMark = EditorView.decorations.compute(["selection"], (state) =>
+  Decoration.set(
+    state.selection.ranges
+      .filter((range) => !range.empty)
+      .map((range) => selectionMarkDecoration.range(range.from, range.to)),
+    true,
+  ),
+);
+
+/**
+ * Hide the engine's per-cell panels, which would otherwise repeat under every
+ * cell. The cursor shape already tells editor insert mode apart.
+ */
+const hidePanelsTheme = EditorView.theme({
+  // Hidden rather than removed: the mode readers parse the mode from it.
+  // `&.cm-editor` outranks the engine's rule, which sets `display: flex`.
+  "&.cm-editor .cm-hx-status-panel": {
+    display: "none",
+  },
+  // The engine keeps the command panel mounted and only toggles its prompt's
+  // visibility, so collapse it unless a `:` or `/` prompt input is present.
+  // A pending prefix such as `g` writes text but no input, and stays hidden.
+  ".cm-hx-command-panel:not(:has(.cm-hx-command-input))": {
+    display: "none",
+  },
+  // The container would otherwise keep its border with nothing inside. Other
+  // bottom panels keep it visible. No commas: `EditorView.theme` splits
+  // selectors on them, even inside `:not()`.
+  ".cm-panels-bottom:not(:has(> :not(.cm-hx-status-panel):not(.cm-hx-command-panel))):not(:has(.cm-hx-command-input))":
+    {
+      display: "none",
+    },
+});
+
+/**
+ * Colour the block cursor with the theme's caret instead of the engine's grey.
+ *
+ * The block cursor is a mark decoration rather than the cursor layer's caret,
+ * so it takes the caret colour from a variable. Syntax tokens nest inside the
+ * mark with their own colour, hence the descendant rule that keeps the
+ * character readable on a dark caret. The selectors match the engine's own
+ * specificity, winning on stylesheet order, so custom CSS can still override
+ * them.
+ */
+const blockCursorTheme = EditorView.theme({
+  ".cm-hx-block-cursor .cm-hx-cursor": {
+    backgroundColor: "var(--cm-caret-color, #ccc)",
+    color: "var(--cm-background)",
+  },
+  ".cm-hx-block-cursor .cm-hx-cursor *": {
+    color: "var(--cm-background)",
+  },
+});
 
 const HIDE_AI_EDIT_TRIGGER_ATTRIBUTE = "data-hide-ai-edit-trigger";
 

@@ -4,13 +4,15 @@ import { EditorView } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme } from "thememirror";
 
+const CARET_COLOR = "#528bff";
+
 export const darkTheme = [
   createTheme({
     variant: "dark",
     settings: {
       background: "var(--cm-background)",
       foreground: "#abb2bf",
-      caret: "#528bff",
+      caret: CARET_COLOR,
       selection: "var(--cm-selection-background)",
       lineHighlight: "#2c313c",
       gutterBackground: "var(--color-background)",
@@ -38,6 +40,8 @@ export const darkTheme = [
   EditorView.theme({
     "&": {
       "--cm-selection-background": "var(--cm-selection-background-dark)",
+      // For carets drawn outside the cursor layer, like the Helix block cursor
+      "--cm-caret-color": CARET_COLOR,
     },
     ".mo-cm-reactive-reference": {
       fontWeight: "400",

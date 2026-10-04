@@ -1,0 +1,45 @@
+# marimo notebook editor
+
+The reactive notebook's frontend, where a user moves between cells and edits
+the code inside them. This glossary exists because the Helix keymap preset
+introduces modal editing at two levels, and the same words are used for both.
+
+## Language
+
+### Modes
+
+**Cell command mode**:
+The state in which a cell is focused but no editor inside it is. Keys act on
+whole cells.
+_Avoid_: command mode, normal mode (when referring to cells)
+
+**Cell select mode**:
+A cell command mode state in which movement keys extend the multi-cell
+selection instead of moving focus.
+_Avoid_: select mode, visual mode, extend mode
+
+**Editor normal mode**:
+The Helix engine's mode inside a cell editor in which keys are motions and
+actions rather than text.
+_Avoid_: normal mode (unqualified)
+
+**Editor select mode**:
+The Helix engine's mode inside a cell editor in which motions extend the
+selection instead of replacing it.
+_Avoid_: select mode (unqualified), visual mode
+
+**Editor insert mode**:
+The Helix engine's mode inside a cell editor in which keys type text.
+_Avoid_: insert mode (unqualified)
+
+### Helix engine surfaces
+
+**Statusline**:
+The engine's panel under an editor showing the mode label, active register
+and cursor position.
+_Avoid_: mode indicator, status bar
+
+**Command panel**:
+The engine's panel under an editor that hosts the `:` command prompt and
+the `/` search prompt.
+_Avoid_: command line, prompt panel

@@ -5,11 +5,12 @@ import {
   copyLineUp,
   defaultKeymap as originalDefaultKeymap,
 } from "@codemirror/commands";
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, keymap, runScopeHandlers } from "@codemirror/view";
 import { commands } from "codemirror-helix";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cellId as asCellId } from "@/__tests__/branded";
+import type { KeymapConfig } from "@/core/config/config-schema";
 import { focusCell } from "@/components/editor/navigation/focus-utils";
 import {
   HotkeyProvider,
@@ -21,7 +22,7 @@ import {
   type CodemirrorCellActions,
 } from "../../cells/state";
 import { isInHelixNormalMode, setHelixMode } from "../helix";
-import { keymapBundle, visibleForTesting } from "../keymaps";
+import { KEYMAP_PRESETS, keymapBundle, visibleForTesting } from "../keymaps";
 
 vi.mock("@/components/editor/navigation/focus-utils", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -86,6 +87,32 @@ describe("keymaps", () => {
       ).toBe("Ctrl-d");
     },
   );
+});
+
+describe("selection mark", () => {
+  function markedSelection(preset: KeymapConfig["preset"]) {
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "print(1)",
+        selection: EditorSelection.range(0, 5),
+        extensions: keymapBundle({ preset, overrides: {} }, HotkeyProvider.create()),
+      }),
+      parent: document.body,
+    });
+    const marked = view.contentDOM.querySelector(".cm-hx-selection");
+    view.destroy();
+    return marked?.textContent ?? null;
+  }
+
+  it("is drawn by the helix preset", () => {
+    expect(markedSelection("helix")).toBe("print");
+  });
+
+  it.each(
+    KEYMAP_PRESETS.filter((preset) => preset !== "helix"),
+  )("is not drawn by the %s preset", (preset) => {
+    expect(markedSelection(preset)).toBeNull();
+  });
 });
 
 describe("helix keymap bundle", () => {
