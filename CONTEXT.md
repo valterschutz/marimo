@@ -6,6 +6,18 @@ introduces modal editing at two levels, and the same words are used for both.
 
 ## Language
 
+### Focus
+
+**Cell focus**:
+Focus on a cell itself rather than on anything inside it. A cell with cell
+focus is in cell command mode.
+_Avoid_: cell selected (selection is separate from focus)
+
+**Editor focus**:
+Focus inside a cell's editor. The cell counts as focused, but keys go to the
+editor.
+_Avoid_: edit mode
+
 ### Modes
 
 **Cell command mode**:
