@@ -757,6 +757,30 @@ describe("useCellNavigationProps", () => {
       });
     });
 
+    it.each([
+      ["o", false],
+      ["O", true],
+    ])(
+      "should create a cell when '%s' is pressed in vim mode",
+      (key, before) => {
+        const { result } = renderWithProvider(() =>
+          useCellNavigationProps(mockCellId, options),
+        );
+
+        act(() => {
+          result.current.onKeyDown?.(
+            Mocks.keyboardEvent({ key, shiftKey: key === "O" }),
+          );
+        });
+
+        expect(mockCellActions.createNewCell).toHaveBeenCalledWith({
+          cellId: mockCellId,
+          before,
+          autoFocus: true,
+        });
+      },
+    );
+
     it("should extend selection down when 'J' key is pressed in vim mode", () => {
       const { result } = renderWithProvider(() =>
         useCellNavigationProps(mockCellId, options),
@@ -2488,6 +2512,15 @@ describe("useCellNavigationProps", () => {
       expect(mockCellActions.createNewCell).toHaveBeenCalledWith(
         expect.objectContaining({ cellId: mockCellId, before: false }),
       );
+    });
+
+    it("runs a key that doesn't continue a started sequence on its own", () => {
+      configure({}, "helix");
+      pressKeys([{ key: "g" }, { key: "ArrowDown" }]);
+      expect(mockCellActions.focusCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        where: "after",
+      });
     });
 
     it("runs a registered notebook action from a cell command binding", () => {

@@ -207,6 +207,10 @@ describe("binding resolution", () => {
     ["notebook", "o"],
     ["notebook", "Shift-o"],
     ["editor", "Space"],
+    ["notebook", "Enter"],
+    ["editor", "ArrowDown"],
+    ["notebook", "Backspace"],
+    ["editor", "Tab"],
   ] as const)("rejects the typing key %s scope %s", (scope, key) => {
     const provider = linux({ "cell.run": { key, scope } });
     expect(provider.getBindings("cell.run")).toEqual([]);
@@ -224,6 +228,7 @@ describe("binding resolution", () => {
       "cell.run": [
         { key: "Shift-Enter", scope: "notebook" },
         { key: "Alt-r", scope: "editor" },
+        { key: "F5", scope: "notebook" },
       ],
     });
     expect(provider.getRejectedBindings("cell.run")).toEqual([]);
@@ -240,7 +245,7 @@ describe("binding resolution", () => {
       { key: "r r", scope: "cell-command" },
     ]);
     expect(provider.getRejectedBindings("cell.run")[0].reason).toBe(
-      "Key sequences only work in cell-command scope",
+      "Key sequences only work in cell command scope",
     );
   });
 
@@ -250,7 +255,7 @@ describe("binding resolution", () => {
     });
     expect(provider.getBindings("cell.toggleComment")).toEqual([]);
     expect(provider.getRejectedBindings("cell.toggleComment")[0].reason).toBe(
-      "This action can't run in cell-command scope",
+      "This action can't run in cell command scope",
     );
   });
 

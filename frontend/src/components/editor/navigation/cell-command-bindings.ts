@@ -4,25 +4,11 @@ import {
   getChords,
   type HotkeyAction,
   type HotkeyProvider,
+  hasCommandModifier,
+  splitChord,
 } from "@/core/hotkeys/hotkeys";
 import { parseShortcut } from "@/core/hotkeys/shortcuts";
 import { handleVimKeybinding } from "./vim-bindings";
-
-const MODIFIER_RE = /^(cmd|ctrl|alt|meta|mod|control|command|option)$/i;
-
-/** Splits a chord such as `Shift-g` into its modifiers and base key. */
-function splitChord(chord: string): { modifiers: string[]; base: string } {
-  const separator = chord.length > 1 && chord.includes("+") ? "+" : "-";
-  const parts = chord.split(separator);
-  return { modifiers: parts.slice(0, -1), base: parts[parts.length - 1] };
-}
-
-/** Whether a key has a modifier other than Shift, such as `Ctrl-Shift-k`. */
-function hasCommandModifier(key: string): boolean {
-  return getChords(key).some((chord) =>
-    splitChord(chord).modifiers.some((modifier) => MODIFIER_RE.test(modifier)),
-  );
-}
 
 /**
  * Converts a key such as `Shift-g` or `g g` to the format

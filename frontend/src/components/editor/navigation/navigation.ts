@@ -309,10 +309,10 @@ export function useCellNavigationProps(
         return true;
       };
 
-      // Autofocus keeps cell-level focus when a cell is created from command
-      // mode, so open the new cell's editor, in insert mode under Helix like
-      // its `o`/`O`. The cell renders, then builds and attaches its editor,
-      // over the next frames.
+      // Autofocus keeps cell focus when a cell is created from cell command
+      // mode, so open the new cell's editor, in editor insert mode under
+      // Helix like its `o`/`O`. The cell renders, then builds and attaches
+      // its editor, over the next frames.
       const openNewCell = (before: boolean) => {
         const newCellId = CellId.create();
         actions.createNewCell({ cellId, before, autoFocus: true, newCellId });
@@ -386,7 +386,7 @@ export function useCellNavigationProps(
             selectionActions.setSelectMode({ selectMode: false });
             return true;
           }
-          // Select mode always shows its ring on at least the focused cell.
+          // Cell select mode always shows its ring on at least the focused cell.
           if (!selectedCells.has(cellId)) {
             selectionActions.select({ cellId });
           }
@@ -400,7 +400,7 @@ export function useCellNavigationProps(
             store.set(clearPendingCutAtom);
             return true;
           }
-          // Also leaves select mode when this cell isn't selected.
+          // Also leaves cell select mode when this cell isn't selected.
           if (isSelected || getIsSelectMode(store)) {
             selectionActions.clear();
             return true;
@@ -596,7 +596,7 @@ export function useCellNavigationProps(
 
           return true;
         }),
-        // Leaves select mode, like Helix's `y`.
+        // Leaves cell select mode, like Helix's `y`.
         "command.copyCell": addSingleHandler((cellIds) => {
           copyCells(cellIds);
           selectionActions.setSelectMode({ selectMode: false });
@@ -649,23 +649,14 @@ export function useCellNavigationProps(
           return true;
         },
         "command.createCellBefore": (cellId) => {
-          if (Events.hasModifier(evt)) {
-            return false;
-          }
           actions.createNewCell({ cellId, before: true, autoFocus: true });
           return true;
         },
         "command.createCellAfter": (cellId) => {
-          if (Events.hasModifier(evt)) {
-            return false;
-          }
           actions.createNewCell({ cellId, before: false, autoFocus: true });
           return true;
         },
         "command.createSqlCellAfter": (cellId) => {
-          if (Events.hasModifier(evt)) {
-            return false;
-          }
           maybeAddMarimoImport({
             autoInstantiate: true,
             createNewCell: actions.createNewCell,
@@ -703,7 +694,7 @@ export function useCellNavigationProps(
           return true;
         },
         // Like Helix's `d`: deletes immediately, since destructive delete is
-        // implied by binding it, and leaves select mode.
+        // implied by binding it, and leaves cell select mode.
         "command.deleteCellToClipboard": () => {
           const cellIds = getCellIdsToDelete();
           if (!cellIds) {
@@ -802,8 +793,11 @@ export function useCellEditorNavigationProps(
   const hotkeys = useAtomValue(hotkeysAtom);
 
   const vimCommandModeShortcut = useMemo(() => {
-    const shortcut = hotkeys.getHotkey("command.vimEnterCommandMode");
-    return parseShortcut(shortcut.key);
+    const matchers = hotkeys
+      .getKeys("command.vimEnterCommandMode", "editor")
+      .map(parseShortcut);
+    return (evt: Parameters<(typeof matchers)[number]>[0]) =>
+      matchers.some((matches) => matches(evt));
   }, [hotkeys]);
 
   const exitToCommandMode = () => {

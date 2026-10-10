@@ -33,10 +33,16 @@ export type BindingOverride = string | Binding | Binding[];
 export type KeymapPreset = "default" | "vim" | "helix";
 
 // Scopes an action can run in; the first is its default scope.
-const EDITOR: readonly ShortcutScope[] = ["editor"];
-const CELL: readonly ShortcutScope[] = ["cell-command", "notebook"];
-const CELL_COMMAND: readonly ShortcutScope[] = ["cell-command"];
-const NOTEBOOK: readonly ShortcutScope[] = ["notebook", "cell-command"];
+const EDITOR_ONLY: readonly ShortcutScope[] = ["editor"];
+const CELL_COMMAND_OR_NOTEBOOK: readonly ShortcutScope[] = [
+  "cell-command",
+  "notebook",
+];
+const CELL_COMMAND_ONLY: readonly ShortcutScope[] = ["cell-command"];
+const NOTEBOOK_OR_CELL_COMMAND: readonly ShortcutScope[] = [
+  "notebook",
+  "cell-command",
+];
 
 export interface Hotkey {
   name: string;
@@ -91,13 +97,13 @@ const DEFAULT_HOT_KEY = {
   "cell.focusUp": {
     name: "Go to previous cell",
     group: "Navigation",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-k",
   },
   "cell.focusDown": {
     name: "Go to next cell",
     group: "Navigation",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-j",
   },
 
@@ -105,55 +111,55 @@ const DEFAULT_HOT_KEY = {
   "cell.moveUp": {
     name: "Move cell up",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-9",
   },
   "cell.moveDown": {
     name: "Move cell down",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-0",
   },
   "cell.moveLeft": {
     name: "Move left",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-7",
   },
   "cell.moveRight": {
     name: "Move right",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-8",
   },
   "cell.createAbove": {
     name: "New cell above",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-o",
   },
   "cell.createBelow": {
     name: "New cell below",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-p",
   },
   "cell.sendToTop": {
     name: "Send to top",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-1",
   },
   "cell.sendToBottom": {
     name: "Send to bottom",
     group: "Creation and Ordering",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-2",
   },
   "cell.addColumnBreakpoint": {
     name: "Add column breakpoint",
     group: "Creation and Ordering",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Mod-Shift-3",
   },
 
@@ -180,7 +186,7 @@ const DEFAULT_HOT_KEY = {
   "global.runAll": {
     name: "Re-run all cells",
     group: "Running Cells",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: NOT_SET,
   },
 
@@ -188,20 +194,20 @@ const DEFAULT_HOT_KEY = {
   "cell.format": {
     name: "Format cell",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-b",
     additionalKeywords: ["lint"],
   },
   "cell.viewAsMarkdown": {
     name: "View as Markdown",
     group: "Editing",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-Shift-m",
   },
   "cell.viewAsSQL": {
     name: "Toggle SQL",
     group: "Editing",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: {
       windows: "Alt-Shift-l",
       main: "Mod-Shift-l",
@@ -210,25 +216,25 @@ const DEFAULT_HOT_KEY = {
   "cell.complete": {
     name: "Code completion",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Ctrl-Space",
   },
   "cell.signatureHelp": {
     name: "Signature help",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-Space",
   },
   "cell.undo": {
     name: "Undo",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-z",
   },
   "cell.redo": {
     name: "Redo",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: {
       main: "Mod-Shift-z",
       windows: "Mod-y",
@@ -243,13 +249,13 @@ const DEFAULT_HOT_KEY = {
   "cell.selectNextOccurrence": {
     name: "Add selection to next Find match",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-d",
   },
   "cell.fold": {
     name: "Fold region",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: {
       main: "Mod-Alt-[",
       windows: "Mod-Shift-[",
@@ -258,7 +264,7 @@ const DEFAULT_HOT_KEY = {
   "cell.unfold": {
     name: "Unfold region",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: {
       main: "Mod-Alt-]",
       windows: "Mod-Shift-]",
@@ -267,26 +273,26 @@ const DEFAULT_HOT_KEY = {
   "cell.foldAll": {
     name: "Fold all regions",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Ctrl-Alt-[",
   },
   "cell.unfoldAll": {
     name: "Unfold all regions",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Ctrl-Alt-]",
   },
   "cell.delete": {
     name: "Delete cell",
     group: "Editing",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Shift-Backspace",
     additionalKeywords: ["remove"],
   },
   "cell.hideCode": {
     name: "Hide cell code",
     group: "Editing",
-    scopes: CELL,
+    scopes: CELL_COMMAND_OR_NOTEBOOK,
     key: "Mod-h",
   },
   "cell.aiCompletion": {
@@ -298,45 +304,45 @@ const DEFAULT_HOT_KEY = {
   "cell.cellActions": {
     name: "Open cell actions",
     group: "Editing",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Mod-p",
   },
   "cell.splitCell": {
     name: "Split cell",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-'",
   },
   "cell.toggleComment": {
     name: "Toggle comment",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     // https://github.com/codemirror/commands/blob/6.8.1/src/commands.ts#L1067
     key: "Mod-/",
   },
   "cell.toggleBlockComment": {
     name: "Toggle block comment",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     // https://github.com/codemirror/commands/blob/6.8.1/src/commands.ts#L1068
     key: "Alt-A",
   },
   "cell.renameSymbol": {
     name: "Rename symbol",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "F2",
   },
   "cell.copyLineUp": {
     name: "Copy line(s) up",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Alt-Shift-ArrowUp",
   },
   "cell.copyLineDown": {
     name: "Copy line(s) down",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Alt-Shift-ArrowDown",
   },
 
@@ -344,43 +350,43 @@ const DEFAULT_HOT_KEY = {
   "markdown.bold": {
     name: "Bold",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-b",
   },
   "markdown.italic": {
     name: "Italic",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-i",
   },
   "markdown.link": {
     name: "Convert to Link",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-k",
   },
   "markdown.orderedList": {
     name: "Convert to Ordered list",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-7",
   },
   "markdown.unorderedList": {
     name: "Convert to Unordered list",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-8",
   },
   "markdown.blockquote": {
     name: "Convert to Blockquote",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-9",
   },
   "markdown.code": {
     name: "Convert to Code",
     group: "Markdown",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Mod-Shift-0",
   },
 
@@ -388,13 +394,13 @@ const DEFAULT_HOT_KEY = {
   "global.hideCode": {
     name: "Toggle app view",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-.",
   },
   "global.foldCode": {
     name: "Fold all cells",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: {
       main: "Ctrl-Cmd-l",
       windows: "Mod-Shift-l",
@@ -403,7 +409,7 @@ const DEFAULT_HOT_KEY = {
   "global.unfoldCode": {
     name: "Unfold all cells",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: {
       main: "Ctrl-Cmd-;",
       windows: "Mod-Shift-:",
@@ -412,101 +418,101 @@ const DEFAULT_HOT_KEY = {
   "global.showHelp": {
     name: "Show keyboard shortcuts",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-h",
   },
   "global.save": {
     name: "Save file",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-s",
     additionalKeywords: ["write", "persist"],
   },
   "global.commandPalette": {
     name: "Show command palette",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-k",
   },
   "global.runStale": {
     name: "Run all stale cells",
     group: "Running Cells",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-r",
   },
   "global.interrupt": {
     name: "Stop (interrupt) execution",
     group: "Running Cells",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-i",
   },
   "global.formatAll": {
     name: "Format all",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-b",
   },
   "global.toggleLanguage": {
     name: "Toggle language to markdown (if supported)",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "F4",
   },
   "global.toggleTerminal": {
     name: "Show integrated terminal",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Ctrl-`",
   },
   "global.togglePanel": {
     name: "Toggle developer panel",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-j",
   },
   "global.showAllCode": {
     name: "Show all code",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: NOT_SET,
     additionalKeywords: ["unhide", "hide", "reveal", "show source"],
   },
   "global.hideAllCode": {
     name: "Hide all code",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: NOT_SET,
   },
   "global.showAllMarkdownCode": {
     name: "Show all markdown code",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: NOT_SET,
   },
   "global.hideAllMarkdownCode": {
     name: "Hide all markdown code",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: NOT_SET,
   },
   "global.collapseAllSections": {
     name: "Collapse all sections",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-\\",
     additionalKeywords: ["fold", "headers"],
   },
   "global.expandAllSections": {
     name: "Expand all sections",
     group: "Editing",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-/",
     additionalKeywords: ["unfold", "headers"],
   },
   "global.toggleMinimap": {
     name: "Toggle Minimap",
     group: "Other",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-i",
   },
 
@@ -514,37 +520,37 @@ const DEFAULT_HOT_KEY = {
   "global.focusTop": {
     name: "Focus top",
     group: "Navigation",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-f",
   },
   "global.focusBottom": {
     name: "Focus bottom",
     group: "Navigation",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-g",
   },
   "global.toggleSidebar": {
     name: "Toggle helper panel",
     group: "Navigation",
-    scopes: NOTEBOOK,
+    scopes: NOTEBOOK_OR_CELL_COMMAND,
     key: "Mod-Shift-s",
   },
   "cell.goToDefinition": {
     name: "Go to Definition",
     group: "Navigation",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "F12",
   },
   "completion.moveDown": {
     name: "Move completion selection down",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Ctrl-j",
   },
   "completion.moveUp": {
     name: "Move completion selection up",
     group: "Editing",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: "Ctrl-k",
   },
 
@@ -552,7 +558,7 @@ const DEFAULT_HOT_KEY = {
   "command.vimEnterCommandMode": {
     name: "Enter command mode (vim)",
     group: "Command",
-    scopes: EDITOR,
+    scopes: EDITOR_ONLY,
     key: {
       main: "Mod-Escape",
       windows: "Shift-Escape",
@@ -561,151 +567,151 @@ const DEFAULT_HOT_KEY = {
   "command.createCellBefore": {
     name: "Create a cell before current cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "a",
   },
   "command.createCellAfter": {
     name: "Create a cell after current cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "b",
   },
   "command.createSqlCellAfter": {
     name: "Create a SQL cell after current cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "q",
   },
   "command.cellToMarkdown": {
     name: "Convert cell to Markdown",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "m",
   },
   "command.cellToCode": {
     name: "Convert cell to Code",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "c",
   },
   "command.hideCode": {
     name: "Toggle hide code for a Markdown cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Shift-h",
   },
   "command.copyCell": {
     name: "Copy cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "y",
   },
   "command.cutCell": {
     name: "Cut cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "x",
   },
   "command.pasteCell": {
     name: "Paste cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "v",
   },
   "command.pasteCellAbove": {
     name: "Paste cell above",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.deleteCellToClipboard": {
     name: "Delete cell, copying it to the clipboard",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.undoDelete": {
     name: "Undo cell deletion",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.openCellAbove": {
     name: "Create a cell above and edit it",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.openCellBelow": {
     name: "Create a cell below and edit it",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.focusEditor": {
     name: "Edit cell",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Enter",
   },
   "command.focusEditorInsertMode": {
-    name: "Edit cell in insert mode",
+    name: "Edit cell in editor insert mode",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.focusLeft": {
     name: "Go to cell in the column to the left",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "ArrowLeft",
   },
   "command.focusRight": {
     name: "Go to cell in the column to the right",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "ArrowRight",
   },
   "command.extendSelectionUp": {
     name: "Extend cell selection up",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Shift-ArrowUp",
   },
   "command.extendSelectionDown": {
     name: "Extend cell selection down",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Shift-ArrowDown",
   },
   "command.clearSelection": {
     name: "Clear cell selection",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: "Escape",
   },
   "command.toggleSelectMode": {
     name: "Toggle cell select mode",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.alignCenter": {
     name: "Scroll cell to the center",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.alignTop": {
     name: "Scroll cell to the top",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
   "command.alignBottom": {
     name: "Scroll cell to the bottom",
     group: "Command",
-    scopes: CELL_COMMAND,
+    scopes: CELL_COMMAND_ONLY,
     key: NOT_SET,
   },
 } satisfies Record<string, Hotkey>;
@@ -937,6 +943,14 @@ export class OverridingHotkeyProvider extends HotkeyProvider {
     );
   }
 
+  /**
+   * The action's bindings as configured, including rejected ones, so that
+   * editing one of them keeps the others.
+   */
+  getConfiguredBindings(action: HotkeyAction): Binding[] {
+    return this.getOverriddenBindings(action) ?? this.getBindings(action);
+  }
+
   /** The user's bindings for the action that are not in effect, and why. */
   getRejectedBindings(action: HotkeyAction): RejectedBinding[] {
     const scopes = this.getScopes(action);
@@ -979,20 +993,67 @@ export function getChords(key: string): string[] {
   return key.trim().split(/\s+/);
 }
 
-/**
- * Whether a chord types a character: a single character or Space, with no
- * modifier other than Shift.
- */
-function isTypingChord(chord: string): boolean {
+/** Splits a chord such as `Ctrl-Shift-k` into its modifiers and base key. */
+export function splitChord(chord: string): {
+  modifiers: string[];
+  base: string;
+} {
   const separator = chord.length > 1 && chord.includes("+") ? "+" : "-";
   const parts = chord.split(separator);
-  const base = parts[parts.length - 1];
-  const modifiers = parts.slice(0, -1);
-  const typesCharacter = base.length === 1 || base.toLowerCase() === "space";
-  return (
-    typesCharacter &&
-    modifiers.every((modifier) => modifier.toLowerCase() === "shift")
+  return { modifiers: parts.slice(0, -1), base: parts[parts.length - 1] };
+}
+
+const COMMAND_MODIFIER_RE = /^(cmd|ctrl|alt|meta|mod|control|command|option)$/i;
+
+/** Whether any chord of a key has a modifier other than Shift. */
+export function hasCommandModifier(key: string): boolean {
+  return getChords(key).some((chord) =>
+    splitChord(chord).modifiers.some((modifier) =>
+      COMMAND_MODIFIER_RE.test(modifier),
+    ),
   );
+}
+
+// Named keys that edit text or move the cursor when pressed on their own.
+const EDITING_KEYS = new Set([
+  "enter",
+  "backspace",
+  "delete",
+  "tab",
+  "escape",
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "home",
+  "end",
+  "pageup",
+  "pagedown",
+]);
+
+/**
+ * Whether a chord takes a key the editor needs: a character or Space with no
+ * modifier other than Shift, or an editing key such as Enter on its own.
+ */
+function blocksEditing(chord: string): boolean {
+  if (hasCommandModifier(chord)) {
+    return false;
+  }
+  const { modifiers, base } = splitChord(chord);
+  const baseKey = base.toLowerCase();
+  if (base.length === 1 || baseKey === "space") {
+    return true;
+  }
+  return modifiers.length === 0 && EDITING_KEYS.has(baseKey);
+}
+
+/** How a scope is named to the user, e.g. "cell command". */
+export function formatScope(scope: ShortcutScope): string {
+  return scope.replace("-", " ");
+}
+
+export function isShortcutScope(value: string): value is ShortcutScope {
+  return SHORTCUT_SCOPES.includes(value as ShortcutScope);
 }
 
 /**
@@ -1003,23 +1064,28 @@ export function validateBinding(
   binding: Binding,
   scopes: readonly ShortcutScope[],
 ): string | undefined {
-  if (!SHORTCUT_SCOPES.includes(binding.scope)) {
+  if (!isShortcutScope(binding.scope)) {
     return `Unknown scope "${binding.scope}"`;
   }
   if (!scopes.includes(binding.scope)) {
-    return `This action can't run in ${binding.scope} scope`;
+    return `This action can't run in ${formatScope(binding.scope)} scope`;
   }
   if (binding.scope === "cell-command") {
     return undefined;
   }
   const chords = getChords(binding.key);
   if (chords.length > 1) {
-    return "Key sequences only work in cell-command scope";
+    return "Key sequences only work in cell command scope";
   }
-  if (isTypingChord(chords[0])) {
+  if (blocksEditing(chords[0])) {
     return "A key without Ctrl, Alt or Cmd would block typing in the editor";
   }
   return undefined;
+}
+
+/** Normalizes each chord of a key with {@link normalizeKeyString}. */
+export function normalizeKeySequence(key: string): string {
+  return getChords(key).map(normalizeKeyString).join(" ");
 }
 
 const MODIFIER_RE = /^(cmd|ctrl|alt|shift|meta|mod)$/i;
@@ -1029,10 +1095,6 @@ const MODIFIER_RE = /^(cmd|ctrl|alt|shift|meta|mod)$/i;
  * casing that KeyboardEvent.key (and therefore CodeMirror) uses.
  * e.g. "Shift-enter" → "Shift-Enter", "Cmd-backspace" → "Cmd-Backspace"
  */
-export function normalizeKeySequence(key: string): string {
-  return getChords(key).map(normalizeKeyString).join(" ");
-}
-
 export function normalizeKeyString(key: string): string {
   const parts = key.split("-");
   const last = parts[parts.length - 1];

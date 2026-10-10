@@ -2,7 +2,7 @@
 
 import { useAtomValue } from "jotai";
 import { hotkeysAtom } from "@/core/config/config";
-import { type HotkeyAction, NOT_SET } from "@/core/hotkeys/hotkeys";
+import { getChords, type HotkeyAction, NOT_SET } from "@/core/hotkeys/hotkeys";
 import { isPlatformMac } from "@/core/hotkeys/shortcuts";
 import { cn } from "@/utils/cn";
 import { DropdownMenuShortcut } from "../ui/dropdown-menu";
@@ -36,7 +36,7 @@ export const KeyboardHotkeys: React.FC<{
     return <span />;
   }
   // A key sequence such as `g g` is shown as its chords, one after another.
-  const chords = shortcut.trim().split(/\s+/);
+  const chords = getChords(shortcut);
 
   return (
     <div className={cn("flex gap-2", className)}>

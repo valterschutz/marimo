@@ -75,6 +75,10 @@ export function handleVimKeybinding(
 
   // No match
   sequenceTracker.delete(target);
+  // A key that doesn't continue the sequence counts as a fresh press.
+  if (tracker) {
+    return handleVimKeybinding(evt, bindings);
+  }
   return false;
 }
 

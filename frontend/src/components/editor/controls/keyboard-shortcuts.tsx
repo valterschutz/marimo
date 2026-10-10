@@ -19,11 +19,14 @@ import {
   type Binding,
   type HotkeyAction,
   type HotkeyGroup,
+  formatScope,
+  isShortcutScope,
   type ShortcutScope,
   validateBinding,
 } from "@/core/hotkeys/hotkeys";
 import { isPlatformMac } from "@/core/hotkeys/shortcuts";
 import { useRequestClient } from "@/core/network/requests";
+import { cn } from "@/utils/cn";
 import { useDuplicateShortcuts } from "../../../hooks/useDuplicateShortcuts";
 import { useHotkey } from "../../../hooks/useHotkey";
 import { KeyboardHotkeys } from "../../shortcuts/renderShortcut";
@@ -42,6 +45,30 @@ export const keyboardShortcutsAtom = atom(false);
 
 /** How long to wait for another key of a sequence before saving it. */
 const SEQUENCE_COMMIT_DELAY = 1000;
+
+const ScopeSelect: React.FC<{
+  scopes: readonly ShortcutScope[];
+  value: ShortcutScope;
+  onChange: (scope: ShortcutScope) => void;
+  className?: string;
+}> = ({ scopes, value, onChange, className }) => (
+  <NativeSelect
+    aria-label="Shortcut scope"
+    value={value}
+    onChange={(e) => {
+      if (isShortcutScope(e.target.value)) {
+        onChange(e.target.value);
+      }
+    }}
+    className={cn("mb-0", className)}
+  >
+    {scopes.map((scope) => (
+      <option key={scope} value={scope}>
+        {formatScope(scope)}
+      </option>
+    ))}
+  </NativeSelect>
+);
 
 export const KeyboardShortcuts: React.FC = () => {
   const [isOpen, setIsOpen] = useAtom(keyboardShortcutsAtom);
@@ -86,13 +113,6 @@ export const KeyboardShortcuts: React.FC = () => {
     await saveConfigOptimistic({ keymap: { ...config.keymap, overrides } });
   };
 
-  // The user's bindings for the action, including rejected ones, so that
-  // editing one binding keeps the others.
-  const getConfiguredBindings = (action: HotkeyAction): Binding[] => [
-    ...hotkeys.getBindings(action),
-    ...hotkeys.getRejectedBindings(action).map(({ binding }) => binding),
-  ];
-
   // Saves the action's bindings, refusing an invalid one with its reason.
   const saveBindings = async (action: HotkeyAction, bindings: Binding[]) => {
     const scopes = hotkeys.getScopes(action);
@@ -130,7 +150,7 @@ export const KeyboardShortcuts: React.FC = () => {
   ) => {
     stopRecording();
     await saveBindings(action, [
-      ...getConfiguredBindings(action),
+      ...hotkeys.getConfiguredBindings(action),
       { key: keyChords.join(" "), scope },
     ]);
   };
@@ -268,24 +288,14 @@ export const KeyboardShortcuts: React.FC = () => {
             </Button>
           }
         />
-        <NativeSelect
-          aria-label="Shortcut scope"
+        <ScopeSelect
+          scopes={hotkeys.getScopes(action)}
           value={scope}
-          onChange={(e) => {
+          onChange={(nextScope) => {
             stopRecording();
-            setRecording({
-              action,
-              scope: e.target.value as ShortcutScope,
-            });
+            setRecording({ action, scope: nextScope });
           }}
-          className="mb-0"
-        >
-          {hotkeys.getScopes(action).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </NativeSelect>
+        />
       </div>
       <span className="text-muted-foreground text-xs">
         {scope === "cell-command"
@@ -301,7 +311,7 @@ export const KeyboardShortcuts: React.FC = () => {
     index: number,
     rejection?: string,
   ) => {
-    const configured = getConfiguredBindings(action);
+    const configured = hotkeys.getConfiguredBindings(action);
     const scopes = hotkeys.getScopes(action);
     return (
       <div
@@ -318,29 +328,21 @@ export const KeyboardShortcuts: React.FC = () => {
           <KeyboardHotkeys shortcut={binding.key} />
         )}
         {hotkeys.isEditable(action) && scopes.length > 1 ? (
-          <NativeSelect
-            aria-label="Shortcut scope"
+          <ScopeSelect
+            scopes={scopes}
             value={binding.scope}
-            onChange={(e) =>
+            onChange={(scope) =>
               saveBindings(
                 action,
-                configured.map((b, i) =>
-                  i === index
-                    ? { ...b, scope: e.target.value as ShortcutScope }
-                    : b,
-                ),
+                configured.map((b, i) => (i === index ? { ...b, scope } : b)),
               )
             }
-            className="mb-0 text-xs"
-          >
-            {scopes.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </NativeSelect>
+            className="text-xs"
+          />
         ) : (
-          <span className="text-xs text-muted-foreground">{binding.scope}</span>
+          <span className="text-xs text-muted-foreground">
+            {formatScope(binding.scope)}
+          </span>
         )}
         {hotkeys.isEditable(action) && (
           <Tooltip content="Remove binding" delayDuration={300}>
@@ -362,7 +364,6 @@ export const KeyboardShortcuts: React.FC = () => {
   const renderItem = (action: HotkeyAction) => {
     const hotkey = hotkeys.getHotkey(action);
     const bindings = hotkeys.getBindings(action);
-    const rejected = hotkeys.getRejectedBindings(action);
     const isDuplicate = hasDuplicate(action);
     const duplicateActions = isDuplicate ? getDuplicatesFor(action) : [];
 
@@ -405,12 +406,16 @@ export const KeyboardShortcuts: React.FC = () => {
             <div className="w-3 h-3" />
           )}
           <div className="flex flex-col gap-1">
-            {bindings.map((binding, index) =>
-              renderBinding(action, binding, index),
-            )}
-            {rejected.map(({ binding, reason }, index) =>
-              renderBinding(action, binding, bindings.length + index, reason),
-            )}
+            {hotkeys
+              .getConfiguredBindings(action)
+              .map((binding, index) =>
+                renderBinding(
+                  action,
+                  binding,
+                  index,
+                  validateBinding(binding, hotkeys.getScopes(action)),
+                ),
+              )}
           </div>
           <div className="flex items-center gap-1">
             <span>{hotkey.name.toLowerCase()}</span>

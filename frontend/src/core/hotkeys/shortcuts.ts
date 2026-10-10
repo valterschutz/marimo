@@ -178,15 +178,15 @@ export function duplicateWithCtrlModifier<T extends KeyBinding>(
 }
 
 /**
- * CodeMirror bindings that run `binding` for each of the action's keys that
- * are active with editor focus: those in editor and notebook scope.
+ * CodeMirror key bindings that run `command` for each of the action's keys
+ * that are active with editor focus: those in editor and notebook scope.
  */
 export function editorKeyBindings<T extends Omit<KeyBinding, "key">>(
   hotkeys: HotkeyProvider,
   action: HotkeyAction,
-  binding: T,
+  command: T,
 ): (T & { key: string })[] {
   return hotkeys
     .getKeys(action, "editor", "notebook")
-    .map((key) => ({ ...binding, key }));
+    .map((key) => ({ ...command, key }));
 }
