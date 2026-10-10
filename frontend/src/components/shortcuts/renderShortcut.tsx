@@ -35,26 +35,34 @@ export const KeyboardHotkeys: React.FC<{
   if (shortcut === NOT_SET || shortcut === "") {
     return <span />;
   }
-  const keys = shortcut.split("-");
+  // A key sequence such as `g g` is shown as its chords, one after another.
+  const chords = shortcut.trim().split(/\s+/);
 
   return (
-    <div className={cn("flex gap-1", className)}>
-      {keys.map(prettyPrintHotkey).map(([label, symbol]) => {
-        if (symbol) {
-          return (
-            <Tooltip
-              asChild={false}
-              tabIndex={-1}
-              key={label}
-              content={label}
-              delayDuration={300}
-            >
-              <Kbd key={label}>{symbol}</Kbd>
-            </Tooltip>
-          );
-        }
-        return <Kbd key={label}>{capitalize(label)}</Kbd>;
-      })}
+    <div className={cn("flex gap-2", className)}>
+      {chords.map((chord, index) => (
+        <div key={`${index}-${chord}`} className="flex gap-1">
+          {chord
+            .split("-")
+            .map(prettyPrintHotkey)
+            .map(([label, symbol]) => {
+              if (symbol) {
+                return (
+                  <Tooltip
+                    asChild={false}
+                    tabIndex={-1}
+                    key={label}
+                    content={label}
+                    delayDuration={300}
+                  >
+                    <Kbd key={label}>{symbol}</Kbd>
+                  </Tooltip>
+                );
+              }
+              return <Kbd key={label}>{capitalize(label)}</Kbd>;
+            })}
+        </div>
+      ))}
     </div>
   );
 };

@@ -247,9 +247,7 @@ def test_save_config_round_trips_scoped_keymap_overrides(
     manager = UserConfigManager()
     manager.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
     manager.save_config(
-        PartialMarimoConfig(
-            keymap={"preset": "helix", "overrides": overrides}
-        )
+        PartialMarimoConfig(keymap={"preset": "helix", "overrides": overrides})
     )
 
     reloaded = UserConfigManager()

@@ -782,9 +782,6 @@ export function isHotkeyAction(x: string): x is HotkeyAction {
   return x in DEFAULT_HOT_KEY;
 }
 
-export function getDefaultHotkey(action: HotkeyAction): ResolvedHotkey {
-  return new HotkeyProvider(DEFAULT_HOT_KEY).getHotkey(action);
-}
 export interface IHotkeyProvider {
   getHotkey(action: HotkeyAction): ResolvedHotkey;
 }
@@ -849,7 +846,10 @@ export class HotkeyProvider implements IHotkeyProvider {
       bindings.push({ key: defaultKey, scope: defaultScope });
     }
     for (const commandKey of commandKeys ?? []) {
-      bindings.push({ key: this.resolveMod(commandKey), scope: "cell-command" });
+      bindings.push({
+        key: this.resolveMod(commandKey),
+        scope: "cell-command",
+      });
     }
     return bindings;
   }
@@ -967,7 +967,9 @@ export function toBindings(
   defaultScope: ShortcutScope,
 ): Binding[] {
   if (typeof override === "string") {
-    return override.trim() === "" ? [] : [{ key: override, scope: defaultScope }];
+    return override.trim() === ""
+      ? []
+      : [{ key: override, scope: defaultScope }];
   }
   return Array.isArray(override) ? override : [override];
 }

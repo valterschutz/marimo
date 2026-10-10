@@ -153,9 +153,7 @@ describe("shortcut scopes", () => {
       { "cell.createBelow": { key: "o", scope: "cell-command" } },
       { platform: "linux" },
     );
-    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual([
-      "o",
-    ]);
+    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual(["o"]);
     expect(provider.getKeys("cell.createBelow", "editor", "notebook")).toEqual(
       [],
     );
@@ -194,9 +192,7 @@ describe("binding resolution", () => {
         { key: "Ctrl-Shift-o", scope: "notebook" },
       ],
     });
-    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual([
-      "o",
-    ]);
+    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual(["o"]);
     expect(provider.getKeys("cell.createBelow", "notebook")).toEqual([
       "Ctrl-Shift-o",
     ]);
@@ -259,10 +255,12 @@ describe("binding resolution", () => {
   });
 
   it("takes the default cell command keys from the preset", () => {
-    expect(linux({}, "helix").getKeys("command.openCellBelow", "cell-command"))
-      .toEqual(["o"]);
-    expect(linux({}, "vim").getKeys("command.createCellAfter", "cell-command"))
-      .toEqual(["b", "o"]);
+    expect(
+      linux({}, "helix").getKeys("command.openCellBelow", "cell-command"),
+    ).toEqual(["o"]);
+    expect(
+      linux({}, "vim").getKeys("command.createCellAfter", "cell-command"),
+    ).toEqual(["b", "o"]);
     expect(linux({}, "vim").getKeys("global.focusTop", "cell-command")).toEqual(
       ["Ctrl-ArrowUp", "g g"],
     );

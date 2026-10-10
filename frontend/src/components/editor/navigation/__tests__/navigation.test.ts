@@ -2447,7 +2447,9 @@ describe("useCellNavigationProps", () => {
     });
 
     it("runs a cell action's notebook binding", () => {
-      configure({ "cell.createBelow": { key: "Ctrl-Alt-n", scope: "notebook" } });
+      configure({
+        "cell.createBelow": { key: "Ctrl-Alt-n", scope: "notebook" },
+      });
       pressKeys([{ key: "n", ctrlKey: true, altKey: true }]);
       expect(mockCellActions.createNewCell).toHaveBeenCalledWith({
         cellId: mockCellId,

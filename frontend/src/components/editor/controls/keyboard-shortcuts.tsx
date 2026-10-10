@@ -4,20 +4,23 @@ import { atom, useAtom, useAtomValue } from "jotai";
 import {
   AlertTriangleIcon,
   BanIcon,
-  EditIcon,
+  PlusIcon,
   RotateCcwIcon,
   XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
+import { NativeSelect } from "@/components/ui/native-select";
 import { hotkeysAtom, useResolvedMarimoConfig } from "@/core/config/config";
 import type { UserConfig } from "@/core/config/config-schema";
 import {
-  getDefaultHotkey,
+  type Binding,
   type HotkeyAction,
   type HotkeyGroup,
+  type ShortcutScope,
+  validateBinding,
 } from "@/core/hotkeys/hotkeys";
 import { isPlatformMac } from "@/core/hotkeys/shortcuts";
 import { useRequestClient } from "@/core/network/requests";
@@ -37,12 +40,23 @@ import { DuplicateShortcutBanner } from "./duplicate-shortcut-banner";
 
 export const keyboardShortcutsAtom = atom(false);
 
+/** How long to wait for another key of a sequence before saving it. */
+const SEQUENCE_COMMIT_DELAY = 1000;
+
 export const KeyboardShortcuts: React.FC = () => {
   const [isOpen, setIsOpen] = useAtom(keyboardShortcutsAtom);
-  const [editingShortcut, setEditingShortcut] = useState<HotkeyAction | null>(
-    null,
-  );
-  const [newShortcut, setNewShortcut] = useState<string[]>([]);
+  // The action a binding is being recorded for, the scope it will have, and
+  // the chords pressed so far.
+  const [recording, setRecording] = useState<{
+    action: HotkeyAction;
+    scope: ShortcutScope;
+  } | null>(null);
+  const [chords, setChords] = useState<string[]>([]);
+  const [error, setError] = useState<{
+    action: HotkeyAction;
+    message: string;
+  } | null>(null);
+  const commitTimeout = useRef<number | undefined>(undefined);
   const [config, setConfig] = useResolvedMarimoConfig();
   const hotkeys = useAtomValue(hotkeysAtom);
   const { saveUserConfig } = useRequestClient();
@@ -53,6 +67,8 @@ export const KeyboardShortcuts: React.FC = () => {
 
   useHotkey("global.showHelp", () => setIsOpen((v) => !v));
 
+  useEffect(() => () => window.clearTimeout(commitTimeout.current), []);
+
   const saveConfigOptimistic = async (newConfig: Partial<UserConfig>) => {
     const prevConfig = { ...config };
     setConfig((prev) => ({ ...prev, ...newConfig }));
@@ -62,64 +78,95 @@ export const KeyboardShortcuts: React.FC = () => {
     });
   };
 
-  const handleNewShortcut = async (shortcut: string[]) => {
-    if (!editingShortcut) {
-      return;
-    }
-
-    const shortcutString = shortcut.join("-");
-    const newConfig = {
-      keymap: {
-        ...config.keymap,
-        overrides: {
-          ...config.keymap.overrides,
-          [editingShortcut]: shortcutString,
-        },
-      },
-    };
-
-    setEditingShortcut(null);
-    setNewShortcut([]);
-    await saveConfigOptimistic(newConfig);
+  const saveOverrides = async (
+    update: (overrides: NonNullable<UserConfig["keymap"]["overrides"]>) => void,
+  ) => {
+    const overrides = { ...config.keymap.overrides };
+    update(overrides);
+    await saveConfigOptimistic({ keymap: { ...config.keymap, overrides } });
   };
 
-  const handleResetShortcut = async () => {
-    if (!editingShortcut) {
+  // The user's bindings for the action, including rejected ones, so that
+  // editing one binding keeps the others.
+  const getConfiguredBindings = (action: HotkeyAction): Binding[] => [
+    ...hotkeys.getBindings(action),
+    ...hotkeys.getRejectedBindings(action).map(({ binding }) => binding),
+  ];
+
+  // Saves the action's bindings, refusing an invalid one with its reason.
+  const saveBindings = async (action: HotkeyAction, bindings: Binding[]) => {
+    const scopes = hotkeys.getScopes(action);
+    for (const binding of bindings) {
+      const reason = validateBinding(binding, scopes);
+      if (reason) {
+        setError({ action, message: reason });
+        return;
+      }
+    }
+    setError(null);
+    const isDefault =
+      JSON.stringify(bindings) ===
+      JSON.stringify(hotkeys.getDefaultBindings(action));
+    await saveOverrides((overrides) => {
+      if (isDefault) {
+        // oxlint-disable-next-line typescript/no-dynamic-delete
+        delete overrides[action];
+      } else {
+        overrides[action] = bindings.length === 0 ? "" : bindings;
+      }
+    });
+  };
+
+  const stopRecording = () => {
+    window.clearTimeout(commitTimeout.current);
+    setRecording(null);
+    setChords([]);
+  };
+
+  const addBinding = async (
+    action: HotkeyAction,
+    scope: ShortcutScope,
+    keyChords: string[],
+  ) => {
+    stopRecording();
+    await saveBindings(action, [
+      ...getConfiguredBindings(action),
+      { key: keyChords.join(" "), scope },
+    ]);
+  };
+
+  const handleChord = (chord: string) => {
+    if (!recording) {
       return;
     }
-    await resetShortcut(editingShortcut);
-    setEditingShortcut(null);
-    setNewShortcut([]);
+    const nextChords = [...chords, chord];
+    window.clearTimeout(commitTimeout.current);
+    // Cell command scope takes key sequences, so wait for another key.
+    if (recording.scope === "cell-command") {
+      setChords(nextChords);
+      const { action, scope } = recording;
+      commitTimeout.current = window.setTimeout(
+        () => void addBinding(action, scope, nextChords),
+        SEQUENCE_COMMIT_DELAY,
+      );
+      return;
+    }
+    void addBinding(recording.action, recording.scope, nextChords);
   };
 
   const resetShortcut = async (action: HotkeyAction) => {
-    const newConfig = {
-      keymap: {
-        ...config.keymap,
-        overrides: {
-          ...config.keymap.overrides,
-        },
-      },
-    };
-
-    // oxlint-disable-next-line typescript/no-dynamic-delete
-    delete newConfig.keymap.overrides[action];
-
-    await saveConfigOptimistic(newConfig);
+    setError(null);
+    await saveOverrides((overrides) => {
+      // oxlint-disable-next-line typescript/no-dynamic-delete
+      delete overrides[action];
+    });
   };
 
   const disableShortcut = async (action: HotkeyAction) => {
-    const newConfig = {
-      keymap: {
-        ...config.keymap,
-        overrides: {
-          ...config.keymap.overrides,
-          [action]: "",
-        },
-      },
-    };
-
-    await saveConfigOptimistic(newConfig);
+    setError(null);
+    await saveOverrides((overrides) => {
+      overrides[action] = "";
+    });
   };
 
   const handleResetAllShortcuts = async () => {
@@ -138,8 +185,8 @@ export const KeyboardShortcuts: React.FC = () => {
       },
     };
 
-    setEditingShortcut(null);
-    setNewShortcut([]);
+    stopRecording();
+    setError(null);
     await saveConfigOptimistic(newConfig);
   };
 
@@ -147,158 +194,244 @@ export const KeyboardShortcuts: React.FC = () => {
     return null;
   }
 
-  const isDisabled = (action: HotkeyAction) =>
-    (config.keymap.overrides ?? {})[action] === "";
+  const isOverridden = (action: HotkeyAction) =>
+    (config.keymap.overrides ?? {})[action] !== undefined;
+
+  const renderRecorder = (action: HotkeyAction, scope: ShortcutScope) => (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <Input
+          value={chords.join(" ")}
+          readOnly={true}
+          placeholder="Press a key combination"
+          onKeyDown={(e) => {
+            e.preventDefault();
+            const next: string[] = [];
+
+            // Skip if the key is a modifier key
+            if (
+              e.key === "Meta" ||
+              e.key === "Control" ||
+              e.key === "Alt" ||
+              e.key === "Shift"
+            ) {
+              return;
+            }
+
+            if (e.metaKey) {
+              next.push(isPlatformMac() ? "Cmd" : "Meta");
+            }
+            if (e.ctrlKey) {
+              next.push("Ctrl");
+            }
+            if (e.altKey) {
+              next.push("Alt");
+            }
+            if (e.shiftKey) {
+              next.push("Shift");
+            }
+
+            // We don't allow `-` to be a shortcut key, since it's used to
+            // separate keys in the shortcut string
+            if (e.key === "-") {
+              return;
+            }
+            // If escape is pressed, without any modifier keys, cancel editing
+            // We don't allow escape to be a shortcut key along, since it's used to
+            // remove focus from many elements
+            if (e.key === "Escape" && next.length === 0) {
+              stopRecording();
+              return;
+            }
+
+            // Single character keys are always lowercase (e.g. "a", "b", "c")
+            // But we should preserve the original case for other keys (e.g. "Enter", "Escape")
+            let key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+            // Handle edge cases
+            if (e.key === " ") {
+              key = "Space";
+            }
+
+            next.push(key);
+
+            handleChord(next.join("-"));
+          }}
+          autoFocus={true}
+          endAdornment={
+            <Button
+              variant="text"
+              size="xs"
+              className="mb-0"
+              onClick={stopRecording}
+            >
+              <XIcon className="w-4 h-4" />
+            </Button>
+          }
+        />
+        <NativeSelect
+          aria-label="Shortcut scope"
+          value={scope}
+          onChange={(e) => {
+            stopRecording();
+            setRecording({
+              action,
+              scope: e.target.value as ShortcutScope,
+            });
+          }}
+          className="mb-0"
+        >
+          {hotkeys.getScopes(action).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      <span className="text-muted-foreground text-xs">
+        {scope === "cell-command"
+          ? "Press a key, or several for a sequence"
+          : "Press a key combination with Ctrl, Alt or Cmd"}
+      </span>
+    </div>
+  );
+
+  const renderBinding = (
+    action: HotkeyAction,
+    binding: Binding,
+    index: number,
+    rejection?: string,
+  ) => {
+    const configured = getConfiguredBindings(action);
+    const scopes = hotkeys.getScopes(action);
+    return (
+      <div
+        key={`${index}-${binding.scope}-${binding.key}`}
+        className="flex items-center justify-end gap-1"
+      >
+        {rejection ? (
+          <Tooltip content={rejection} delayDuration={300}>
+            <span className="line-through opacity-60">
+              <KeyboardHotkeys shortcut={binding.key} />
+            </span>
+          </Tooltip>
+        ) : (
+          <KeyboardHotkeys shortcut={binding.key} />
+        )}
+        {hotkeys.isEditable(action) && scopes.length > 1 ? (
+          <NativeSelect
+            aria-label="Shortcut scope"
+            value={binding.scope}
+            onChange={(e) =>
+              saveBindings(
+                action,
+                configured.map((b, i) =>
+                  i === index
+                    ? { ...b, scope: e.target.value as ShortcutScope }
+                    : b,
+                ),
+              )
+            }
+            className="mb-0 text-xs"
+          >
+            {scopes.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </NativeSelect>
+        ) : (
+          <span className="text-xs text-muted-foreground">{binding.scope}</span>
+        )}
+        {hotkeys.isEditable(action) && (
+          <Tooltip content="Remove binding" delayDuration={300}>
+            <XIcon
+              className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
+              onClick={() =>
+                saveBindings(
+                  action,
+                  configured.filter((_, i) => i !== index),
+                )
+              }
+            />
+          </Tooltip>
+        )}
+      </div>
+    );
+  };
 
   const renderItem = (action: HotkeyAction) => {
     const hotkey = hotkeys.getHotkey(action);
-
-    if (editingShortcut === action) {
-      const defaultHotkey = getDefaultHotkey(action);
-      return (
-        <div key={action}>
-          <Input
-            defaultValue={newShortcut.join("+")}
-            placeholder={hotkey.name}
-            onKeyDown={(e) => {
-              e.preventDefault();
-              const next: string[] = [];
-
-              // Skip if the key is a modifier key
-              if (
-                e.key === "Meta" ||
-                e.key === "Control" ||
-                e.key === "Alt" ||
-                e.key === "Shift"
-              ) {
-                return;
-              }
-
-              if (e.metaKey) {
-                next.push(isPlatformMac() ? "Cmd" : "Meta");
-              }
-              if (e.ctrlKey) {
-                next.push("Ctrl");
-              }
-              if (e.altKey) {
-                next.push("Alt");
-              }
-              if (e.shiftKey) {
-                next.push("Shift");
-              }
-
-              // We don't allow `-` to be a shortcut key, since it's used to
-              // separate keys in the shortcut string
-              if (e.key === "-") {
-                return;
-              }
-              // If escape is pressed, without any modifier keys, cancel editing
-              // We don't allow escape to be a shortcut key along, since it's used to
-              // remove focus from many elements
-              if (e.key === "Escape" && next.length === 0) {
-                setEditingShortcut(null);
-                setNewShortcut([]);
-                return;
-              }
-
-              // Single character keys are always lowercase (e.g. "a", "b", "c")
-              // But we should preserve the original case for other keys (e.g. "Enter", "Escape")
-              let key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-              // Handle edge cases
-              if (e.key === " ") {
-                key = "Space";
-              }
-
-              next.push(key);
-
-              handleNewShortcut(next);
-            }}
-            autoFocus={true}
-            endAdornment={
-              <Button
-                variant="text"
-                size="xs"
-                className="mb-0"
-                onClick={() => {
-                  setEditingShortcut(null);
-                  setNewShortcut([]);
-                }}
-              >
-                <XIcon className="w-4 h-4" />
-              </Button>
-            }
-          />
-          <div className="flex items-center justify-between w-full">
-            <span className="text-muted-foreground text-xs">
-              Press a key combination
-            </span>
-            {defaultHotkey.key !== hotkey.key && (
-              <span
-                className="text-xs cursor-pointer text-primary"
-                onClick={handleResetShortcut}
-              >
-                Reset to default:{" "}
-                <span className="font-mono">{defaultHotkey.key}</span>
-              </span>
-            )}
-          </div>
-        </div>
-      );
-    }
-
+    const bindings = hotkeys.getBindings(action);
+    const rejected = hotkeys.getRejectedBindings(action);
     const isDuplicate = hasDuplicate(action);
     const duplicateActions = isDuplicate ? getDuplicatesFor(action) : [];
 
     return (
-      <div
-        key={action}
-        className="grid grid-cols-[auto_2fr_3fr] gap-2 items-center"
-      >
-        {hotkeys.isEditable(action) ? (
-          <div className="flex items-center gap-1.5">
-            <EditIcon
-              className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
-              onClick={() => {
-                setNewShortcut([]);
-                setEditingShortcut(action);
-              }}
-            />
-            {hotkey.key ? (
-              <Tooltip content="Disable shortcut" delayDuration={300}>
-                <BanIcon
+      <div key={action} className="flex flex-col gap-1">
+        <div className="grid grid-cols-[auto_3fr_2fr] gap-2 items-center">
+          {hotkeys.isEditable(action) ? (
+            <div className="flex items-center gap-1.5">
+              <Tooltip content="Add binding" delayDuration={300}>
+                <PlusIcon
                   className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
-                  onClick={() => disableShortcut(action)}
+                  onClick={() => {
+                    stopRecording();
+                    setError(null);
+                    setRecording({
+                      action,
+                      scope: hotkeys.getScopes(action)[0],
+                    });
+                  }}
                 />
               </Tooltip>
-            ) : (
-              isDisabled(action) && (
+              {bindings.length > 0 && (
+                <Tooltip content="Disable shortcut" delayDuration={300}>
+                  <BanIcon
+                    className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
+                    onClick={() => disableShortcut(action)}
+                  />
+                </Tooltip>
+              )}
+              {isOverridden(action) && (
                 <Tooltip content="Restore default shortcut" delayDuration={300}>
                   <RotateCcwIcon
                     className="cursor-pointer opacity-60 hover:opacity-100 text-muted-foreground w-3 h-3"
                     onClick={() => resetShortcut(action)}
                   />
                 </Tooltip>
-              )
+              )}
+            </div>
+          ) : (
+            <div className="w-3 h-3" />
+          )}
+          <div className="flex flex-col gap-1">
+            {bindings.map((binding, index) =>
+              renderBinding(action, binding, index),
+            )}
+            {rejected.map(({ binding, reason }, index) =>
+              renderBinding(action, binding, bindings.length + index, reason),
             )}
           </div>
-        ) : (
-          <div className="w-3 h-3" />
-        )}
-        <KeyboardHotkeys className="justify-end" shortcut={hotkey.key} />
-        <div className="flex items-center gap-1">
-          <span>{hotkey.name.toLowerCase()}</span>
-          {isDuplicate && (
-            <div className="group relative inline-flex">
-              <AlertTriangleIcon className="w-3 h-3 text-(--yellow-11)" />
-              <div className="invisible group-hover:visible absolute left-0 top-5 z-10 w-max max-w-xs rounded-md bg-(--yellow-2) border border-(--yellow-7) p-2 text-xs text-(--yellow-11) shadow-md">
-                Also used by:{" "}
-                {duplicateActions
-                  .map((a) => hotkeys.getHotkey(a).name.toLowerCase())
-                  .join(", ")}
+          <div className="flex items-center gap-1">
+            <span>{hotkey.name.toLowerCase()}</span>
+            {isDuplicate && (
+              <div className="group relative inline-flex">
+                <AlertTriangleIcon className="w-3 h-3 text-(--yellow-11)" />
+                <div className="invisible group-hover:visible absolute left-0 top-5 z-10 w-max max-w-xs rounded-md bg-(--yellow-2) border border-(--yellow-7) p-2 text-xs text-(--yellow-11) shadow-md">
+                  Also used by:{" "}
+                  {duplicateActions
+                    .map((a) => hotkeys.getHotkey(a).name.toLowerCase())
+                    .join(", ")}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+        {recording?.action === action &&
+          renderRecorder(action, recording.scope)}
+        {error?.action === action && (
+          <span className="text-xs text-destructive">{error.message}</span>
+        )}
       </div>
     );
   };
