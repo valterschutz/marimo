@@ -10,6 +10,7 @@ import {
   StateField,
   type Text,
 } from "@codemirror/state";
+import { getIndentation, indentString } from "@codemirror/language";
 import {
   type Command,
   Decoration,
@@ -119,6 +120,7 @@ export function helixExtension(): Extension[] {
     selectionMark,
     viewMode,
     longWordMotions,
+    indentedOpenLine,
     linewisePaste,
   ];
 }
@@ -298,6 +300,57 @@ function moveRangeByLongWord(
   return nextHeadCursor.to < anchorCursor.from
     ? EditorSelection.range(anchorCursor.to, nextHeadCursor.from)
     : EditorSelection.range(anchorCursor.from, nextHeadCursor.to);
+}
+
+/**
+ * Indent the line `o` and `O` open, as Helix does; the engine's own commands
+ * insert a bare line break. The engine still opens the line, so its undo
+ * checkpoint and switch to insert mode are kept, and the new line then gets
+ * the language's indentation, or the indentation of the line it was opened
+ * from when the language has no opinion.
+ */
+const indentedOpenLine: Extension = Prec.high(
+  keymap.of([
+    { key: "o", run: (view) => openIndentedLine(view, "o") },
+    { key: "O", run: (view) => openIndentedLine(view, "O") },
+  ]),
+);
+
+/** Set while the engine's own `o`/`O` runs, so it is not wrapped again. */
+let openingLine = false;
+
+function openIndentedLine(view: EditorView, key: "o" | "O"): boolean {
+  if (openingLine || !isIdleInHelixNormalMode(view)) {
+    return false;
+  }
+  const doc = view.state.doc;
+  openingLine = true;
+  try {
+    runHelixKey(view, key);
+  } finally {
+    openingLine = false;
+  }
+  if (view.state.doc === doc) {
+    return true;
+  }
+  const { head } = view.state.selection.main;
+  const line = view.state.doc.lineAt(head);
+  const column = getIndentation(view.state, head);
+  const sourceLine = view.state.doc.line(
+    key === "o" ? line.number - 1 : line.number + 1,
+  );
+  const indent =
+    column === null
+      ? sourceLine.text.slice(
+          0,
+          sourceLine.text.length - sourceLine.text.trimStart().length,
+        )
+      : indentString(view.state, column);
+  view.dispatch({
+    changes: { from: head, insert: indent },
+    selection: EditorSelection.cursor(head + indent.length),
+  });
+  return true;
 }
 
 /** Helix's direction for a range; a one-character cursor is forward. */

@@ -9,6 +9,7 @@ import { EditorView, runScopeHandlers, showPanel } from "@codemirror/view";
 import { python } from "@codemirror/lang-python";
 import {
   defaultHighlightStyle,
+  indentUnit,
   syntaxHighlighting,
 } from "@codemirror/language";
 import { aiExtension } from "@marimo-team/codemirror-ai";
@@ -807,5 +808,52 @@ describe("helixExtension linewise paste", () => {
     expect(isWholeLineRange(doc, EditorSelection.range(12, 17))).toBe(true);
     expect(isWholeLineRange(doc, EditorSelection.range(12, 16))).toBe(false);
     expect(isWholeLineRange(doc, EditorSelection.range(0, 6))).toBe(true);
+  });
+});
+
+describe("helixExtension open line indentation", () => {
+  const source = "def f():\n    x = 1\n    return x";
+  // marimo's editor setup indents by four spaces.
+  const python4 = [python(), indentUnit.of("    ")];
+
+  function cursorAt(view: EditorView, text: string) {
+    return EditorSelection.cursor(view.state.doc.toString().indexOf(text));
+  }
+
+  it.each([
+    ["O", "x = 1", "def f():\n    \n    x = 1\n    return x"],
+    ["o", "x = 1", "def f():\n    x = 1\n    \n    return x"],
+    ["o", "def", "def f():\n    \n    x = 1\n    return x"],
+    ["O", "def", "\ndef f():\n    x = 1\n    return x"],
+  ])("%s on %s indents the new line", async (key, at, expected) => {
+    const view = await createFocusedView(source, python4);
+    view.dispatch({ selection: cursorAt(view, at) });
+    press(view, key);
+    expect(view.state.doc.toString()).toBe(expected);
+    expect(isInHelixNormalMode(view)).toBe(false);
+    const { head } = view.state.selection.main;
+    expect(view.state.doc.lineAt(head).to).toBe(head);
+  });
+
+  it.each([
+    ["o", "  a\n  \n  b"],
+    ["O", "  a\n  \n  b"],
+  ])(
+    "%s copies the indentation without a language to ask",
+    async (key, expected) => {
+      const view = await createFocusedView("  a\n  b");
+      view.dispatch({ selection: cursorAt(view, key === "o" ? "a" : "b") });
+      press(view, key);
+      expect(view.state.doc.toString()).toBe(expected);
+    },
+  );
+
+  it("undoes the opened line and its indentation in one step", async () => {
+    const view = await createFocusedView(source, python4);
+    view.dispatch({ selection: cursorAt(view, "return") });
+    press(view, "O");
+    press(view, "Escape");
+    press(view, "u");
+    expect(view.state.doc.toString()).toBe(source);
   });
 });
