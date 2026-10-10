@@ -50,6 +50,30 @@ _Avoid_: select mode (unqualified), visual mode
 The Helix engine's mode inside a cell editor in which keys type text.
 _Avoid_: insert mode (unqualified)
 
+### Shortcuts
+
+**Binding**:
+A key assigned to an action, together with the shortcut scope it is active
+in.
+_Avoid_: hotkey (when the scope matters)
+
+**Shortcut scope**:
+Where a binding is active: editor scope, cell command scope or notebook
+scope. Every binding has exactly one.
+_Avoid_: context, layer
+
+**Editor scope**:
+The shortcut scope active only with editor focus. Cell-level actions belong
+elsewhere, so editor focus edits only that cell's text.
+
+**Cell command scope**:
+The shortcut scope active only in cell command mode.
+
+**Notebook scope**:
+The shortcut scope active in both editor focus and cell command mode, such
+as saving or running a cell.
+_Avoid_: global, mixed
+
 ### Helix engine surfaces
 
 **Statusline**:
