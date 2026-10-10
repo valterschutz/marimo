@@ -1,4 +1,5 @@
 /* Copyright 2026 Marimo. All rights reserved. */
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import { type Extension, Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import type { HotkeyProvider } from "@/core/hotkeys/hotkeys";
@@ -21,43 +22,36 @@ export function enhancedMarkdownExtension(
     Prec.highest(
       keymap.of([
         // Runs always
-        {
-          key: hotkeys.getHotkey("markdown.bold").key,
+        ...editorKeyBindings(hotkeys, "markdown.bold", {
           stopPropagation: true,
           run: insertBoldMarker,
-        },
+        }),
         // Runs always
-        {
-          key: hotkeys.getHotkey("markdown.italic").key,
+        ...editorKeyBindings(hotkeys, "markdown.italic", {
           stopPropagation: true,
           run: insertItalicMarker,
-        },
+        }),
         // Only runs on selection
-        {
-          key: hotkeys.getHotkey("markdown.link").key,
+        ...editorKeyBindings(hotkeys, "markdown.link", {
           stopPropagation: true,
           run: (cm) => insertLink(cm),
-        },
+        }),
         // Only runs on selection
-        {
-          key: hotkeys.getHotkey("markdown.orderedList").key,
+        ...editorKeyBindings(hotkeys, "markdown.orderedList", {
           run: insertOL,
-        },
+        }),
         // Only runs on selection
-        {
-          key: hotkeys.getHotkey("markdown.unorderedList").key,
+        ...editorKeyBindings(hotkeys, "markdown.unorderedList", {
           run: insertUL,
-        },
+        }),
         // Only runs on selection
-        {
-          key: hotkeys.getHotkey("markdown.blockquote").key,
+        ...editorKeyBindings(hotkeys, "markdown.blockquote", {
           run: insertBlockquote,
-        },
+        }),
         // Only runs on selection
-        {
-          key: hotkeys.getHotkey("markdown.code").key,
+        ...editorKeyBindings(hotkeys, "markdown.code", {
           run: insertCodeMarker,
-        },
+        }),
         // Only runs on selection
         {
           key: "`",

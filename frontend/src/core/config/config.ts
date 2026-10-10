@@ -50,7 +50,8 @@ export const platformAtom = atom<Platform>(resolvePlatform());
 export const hotkeysAtom = atom((get) => {
   const overrides = get(hotkeyOverridesAtom);
   const platform = get(platformAtom);
-  return new OverridingHotkeyProvider(overrides, { platform });
+  const preset = get(resolvedMarimoConfigAtom).keymap.preset;
+  return new OverridingHotkeyProvider(overrides, { platform, preset });
 });
 
 export const autoSaveConfigAtom = atom((get) => {

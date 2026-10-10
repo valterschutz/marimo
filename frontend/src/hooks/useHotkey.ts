@@ -53,8 +53,10 @@ export function useHotkey(
       return;
     }
 
-    const key = hotkeys.getHotkey(shortcut).key;
-    if (parseShortcut(key)(e)) {
+    // A document listener can't tell editor focus from cell command mode,
+    // so only notebook scope bindings, active in both, apply here.
+    const keys = hotkeys.getKeys(shortcut, "notebook");
+    if (keys.some((key) => parseShortcut(key)(e))) {
       const response = callback(e);
       // Prevent default if the callback does not return false
       if (response !== false) {

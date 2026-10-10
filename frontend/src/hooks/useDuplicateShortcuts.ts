@@ -5,6 +5,7 @@ import type {
   HotkeyAction,
   HotkeyGroup,
   HotkeyProvider,
+  ShortcutScope,
 } from "@/core/hotkeys/hotkeys";
 
 export interface DuplicateGroup {
@@ -32,7 +33,17 @@ export function normalizeShortcutKey(key: string): string {
 }
 
 /**
- * Detects duplicate keyboard shortcuts in a hotkey provider.
+ * Whether two bindings in these scopes can fire at the same time. Notebook
+ * scope is active with editor focus and in cell command mode, so it overlaps
+ * both.
+ */
+function scopesOverlap(a: ShortcutScope, b: ShortcutScope): boolean {
+  return a === b || a === "notebook" || b === "notebook";
+}
+
+/**
+ * Detects duplicate keyboard shortcuts in a hotkey provider: bindings of
+ * different actions with the same key, in scopes that overlap.
  * Returns information about which shortcuts are duplicated and provides utilities
  * to check if specific actions have duplicates.
  *
@@ -51,8 +62,11 @@ export function findDuplicateShortcuts(
     ? new Set(groups[ignoreGroup] || [])
     : new Set();
 
-  // Group actions by their key binding
-  const keyMap = new Map<string, { action: HotkeyAction; name: string }[]>();
+  // Group bindings by their key
+  const keyMap = new Map<
+    string,
+    { action: HotkeyAction; scope: ShortcutScope }[]
+  >();
 
   for (const action of hotkeys.iterate()) {
     // Skip actions in ignored groups
@@ -60,69 +74,49 @@ export function findDuplicateShortcuts(
       continue;
     }
 
-    const hotkey = hotkeys.getHotkey(action);
-
-    // Skip empty keys (not set)
-    if (!hotkey.key || hotkey.key.trim() === "") {
-      continue;
+    for (const { key, scope } of hotkeys.getBindings(action)) {
+      // Skip empty keys (not set)
+      if (key.trim() === "") {
+        continue;
+      }
+      const normalizedKey = normalizeShortcutKey(key);
+      const bindings = keyMap.get(normalizedKey) ?? [];
+      bindings.push({ action, scope });
+      keyMap.set(normalizedKey, bindings);
     }
+  }
 
-    const normalizedKey = normalizeShortcutKey(hotkey.key);
+  // Each action's conflicting actions, and the keys with conflicts
+  const conflicts = new Map<HotkeyAction, Set<HotkeyAction>>();
+  const duplicates: DuplicateGroup[] = [];
 
-    if (!keyMap.has(normalizedKey)) {
-      keyMap.set(normalizedKey, []);
+  for (const [key, bindings] of keyMap.entries()) {
+    const conflicting = new Set<HotkeyAction>();
+    for (const a of bindings) {
+      for (const b of bindings) {
+        if (a.action !== b.action && scopesOverlap(a.scope, b.scope)) {
+          conflicting.add(a.action);
+          const others = conflicts.get(a.action) ?? new Set();
+          others.add(b.action);
+          conflicts.set(a.action, others);
+        }
+      }
     }
-
-    const existing = keyMap.get(normalizedKey);
-    if (existing) {
-      existing.push({
-        action,
-        name: hotkey.name,
+    if (conflicting.size > 0) {
+      duplicates.push({
+        key,
+        actions: [...conflicting].map((action) => ({
+          action,
+          name: hotkeys.getHotkey(action).name,
+        })),
       });
     }
   }
 
-  // Filter to only groups with duplicates (more than one action per key)
-  const duplicates: DuplicateGroup[] = [];
-  const duplicateActionSet = new Set<HotkeyAction>();
-
-  for (const [key, actions] of keyMap.entries()) {
-    if (actions.length > 1) {
-      duplicates.push({ key, actions });
-      for (const { action } of actions) {
-        duplicateActionSet.add(action);
-      }
-    }
-  }
-
-  // Helper to check if an action has duplicates
-  const hasDuplicate = (action: HotkeyAction): boolean => {
-    return duplicateActionSet.has(action);
-  };
-
-  // Helper to get all duplicates for a specific action
-  const getDuplicatesFor = (action: HotkeyAction): HotkeyAction[] => {
-    const hotkey = hotkeys.getHotkey(action);
-    if (!hotkey.key || hotkey.key.trim() === "") {
-      return [];
-    }
-
-    const normalizedKey = normalizeShortcutKey(hotkey.key);
-
-    const group = duplicates.find((d) => d.key === normalizedKey);
-    if (!group || group.actions.length <= 1) {
-      return [];
-    }
-
-    return group.actions
-      .filter((a) => a.action !== action)
-      .map((a) => a.action);
-  };
-
   return {
     duplicates,
-    hasDuplicate,
-    getDuplicatesFor,
+    hasDuplicate: (action) => conflicts.has(action),
+    getDuplicatesFor: (action) => [...(conflicts.get(action) ?? [])],
   };
 }
 

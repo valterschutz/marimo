@@ -18,7 +18,10 @@ import { loroSyncAnnotation } from "@/core/codemirror/rtc/loro/sync";
 import type { KeymapConfig } from "@/core/config/config-schema";
 import type { HotkeyProvider } from "@/core/hotkeys/hotkeys";
 import { getFeatureFlag } from "@/core/config/feature-flag";
-import { duplicateWithCtrlModifier } from "@/core/hotkeys/shortcuts";
+import {
+  duplicateWithCtrlModifier,
+  editorKeyBindings,
+} from "@/core/hotkeys/shortcuts";
 import { store } from "@/core/state/jotai";
 import { createObservable } from "@/core/state/observable";
 import { formatKeymapExtension } from "../extensions";
@@ -57,8 +60,7 @@ function cellKeymaps({
 
   // Run-related keybindings get Ctrl equivalents on macOS for Jupyter/Colab users
   keybindings.push(
-    ...duplicateWithCtrlModifier({
-      key: hotkeys.getHotkey("cell.run").key,
+    ...editorKeyBindings(hotkeys, "cell.run", {
       preventDefault: true,
       stopPropagation: true,
       run: (ev) => {
@@ -66,10 +68,9 @@ function cellKeymaps({
         actions.onRun();
         return true;
       },
-    }),
-    {
-      // Shift-Enter has no Cmd, so no Ctrl equivalent needed
-      key: hotkeys.getHotkey("cell.runAndNewBelow").key,
+    }).flatMap(duplicateWithCtrlModifier),
+    // Shift-Enter has no Cmd, so no Ctrl equivalent needed
+    ...editorKeyBindings(hotkeys, "cell.runAndNewBelow", {
       preventDefault: true,
       stopPropagation: true,
       run: (ev) => {
@@ -82,9 +83,8 @@ function cellKeymaps({
         actions.moveToNextCell({ cellId, before: false });
         return true;
       },
-    },
-    ...duplicateWithCtrlModifier({
-      key: hotkeys.getHotkey("cell.runAndNewAbove").key,
+    }),
+    ...editorKeyBindings(hotkeys, "cell.runAndNewAbove", {
       preventDefault: true,
       stopPropagation: true,
       run: (ev) => {
@@ -97,9 +97,8 @@ function cellKeymaps({
         actions.moveToNextCell({ cellId, before: true });
         return true;
       },
-    }),
-    {
-      key: hotkeys.getHotkey("cell.aiCompletion").key,
+    }).flatMap(duplicateWithCtrlModifier),
+    ...editorKeyBindings(hotkeys, "cell.aiCompletion", {
       preventDefault: true,
       stopPropagation: true,
       run: (ev) => {
@@ -110,19 +109,17 @@ function cellKeymaps({
         }
         return true;
       },
-    },
+    }),
   );
 
   if (cellId !== SCRATCH_CELL_ID) {
     keybindings.push(
-      {
-        key: hotkeys.getHotkey("cell.goToDefinition").key,
+      ...editorKeyBindings(hotkeys, "cell.goToDefinition", {
         run: (ev) => {
           return goToDefinitionAtCursorPosition(ev);
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.delete").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.delete", {
         preventDefault: true,
         stopPropagation: true,
         run: (cm) => {
@@ -138,9 +135,8 @@ function cellKeymaps({
           // absent-mindedly held these keys. That's why we always return true.
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.moveUp").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.moveUp", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -148,9 +144,8 @@ function cellKeymaps({
           actions.moveCell({ cellId, before: true });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.moveDown").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.moveDown", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -158,9 +153,8 @@ function cellKeymaps({
           actions.moveCell({ cellId, before: false });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.moveLeft").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.moveLeft", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -168,9 +162,8 @@ function cellKeymaps({
           actions.moveCell({ cellId, before: true, direction: "left" });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.moveRight").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.moveRight", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -178,7 +171,7 @@ function cellKeymaps({
           actions.moveCell({ cellId, before: false, direction: "right" });
           return true;
         },
-      },
+      }),
       {
         key: "ArrowUp",
         run: (ev) => {
@@ -213,8 +206,7 @@ function cellKeymaps({
           return false;
         },
       },
-      {
-        key: hotkeys.getHotkey("cell.focusDown").key,
+      ...editorKeyBindings(hotkeys, "cell.focusDown", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -222,9 +214,8 @@ function cellKeymaps({
           actions.moveToNextCell({ cellId, before: false, noCreate: true });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.focusUp").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.focusUp", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -232,9 +223,8 @@ function cellKeymaps({
           actions.moveToNextCell({ cellId, before: true, noCreate: true });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.sendToBottom").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.sendToBottom", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -242,9 +232,8 @@ function cellKeymaps({
           actions.sendToBottom({ cellId });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.sendToTop").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.sendToTop", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -252,9 +241,8 @@ function cellKeymaps({
           actions.sendToTop({ cellId });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.createAbove").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.createAbove", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -263,9 +251,8 @@ function cellKeymaps({
           actions.createNewCell({ cellId, before: true });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.createBelow").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.createBelow", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -274,9 +261,8 @@ function cellKeymaps({
           actions.createNewCell({ cellId, before: false });
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.hideCode").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.hideCode", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -294,9 +280,8 @@ function cellKeymaps({
           }
           return true;
         },
-      },
-      {
-        key: hotkeys.getHotkey("cell.splitCell").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.splitCell", {
         preventDefault: true,
         stopPropagation: true,
         run: (ev) => {
@@ -311,7 +296,7 @@ function cellKeymaps({
           });
           return true;
         },
-      },
+      }),
     );
   }
 

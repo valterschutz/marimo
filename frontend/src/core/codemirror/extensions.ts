@@ -1,4 +1,5 @@
 /* Copyright 2026 Marimo. All rights reserved. */
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import { EditorView, keymap } from "@codemirror/view";
 import type { HotkeyProvider } from "@/core/hotkeys/hotkeys";
 import { invariant } from "@/utils/invariant";
@@ -10,61 +11,63 @@ import {
   toggleToLanguage,
 } from "./language/commands";
 
+/** Toggles the cell between Markdown and Python. */
+export function toggleMarkdown(ev: EditorView): boolean {
+  const currentLanguage = getCurrentLanguageAdapter(ev);
+  const destinationLanguage =
+    currentLanguage === "markdown" ? "python" : "markdown";
+
+  const response = toggleToLanguage(ev, destinationLanguage, {
+    force: true,
+  });
+
+  // Handle post-toggle actions
+  if (response === "markdown") {
+    const actions = ev.state.facet(cellActionsState);
+    actions.afterToggleMarkdown();
+  }
+
+  return response !== false;
+}
+
+/** Toggles the cell between SQL and Python. */
+export function toggleSQL(ev: EditorView): boolean {
+  const currentLanguage = getCurrentLanguageAdapter(ev);
+  const destinationLanguage = currentLanguage === "sql" ? "python" : "sql";
+
+  const response = toggleToLanguage(ev, destinationLanguage, {
+    force: true,
+  });
+
+  if (response === "sql") {
+    const actions = ev.state.facet(cellActionsState);
+    actions.afterToggleSQL();
+  }
+
+  return response !== false;
+}
+
 /**
  * Add a keymap to format the code in the editor.
  */
 export function formatKeymapExtension(hotkeys: HotkeyProvider) {
   return keymap.of([
-    {
-      key: hotkeys.getHotkey("cell.format").key,
+    ...editorKeyBindings(hotkeys, "cell.format", {
       preventDefault: true,
       run: (ev) => {
         const cellId = ev.state.facet(cellIdState);
         formatEditorViews({ [cellId]: ev });
         return true;
       },
-    },
-    {
-      key: hotkeys.getHotkey("cell.viewAsMarkdown").key,
+    }),
+    ...editorKeyBindings(hotkeys, "cell.viewAsMarkdown", {
       preventDefault: true,
-      run: (ev) => {
-        const currentLanguage = getCurrentLanguageAdapter(ev);
-        const destinationLanguage =
-          currentLanguage === "markdown" ? "python" : "markdown";
-
-        const response = toggleToLanguage(ev, destinationLanguage, {
-          force: true,
-        });
-
-        // Handle post-toggle actions
-        if (response === "markdown") {
-          const actions = ev.state.facet(cellActionsState);
-          actions.afterToggleMarkdown();
-        }
-
-        return response !== false;
-      },
-    },
-    {
-      key: hotkeys.getHotkey("cell.viewAsSQL").key,
+      run: toggleMarkdown,
+    }),
+    ...editorKeyBindings(hotkeys, "cell.viewAsSQL", {
       preventDefault: true,
-      run: (ev) => {
-        const currentLanguage = getCurrentLanguageAdapter(ev);
-        const destinationLanguage =
-          currentLanguage === "sql" ? "python" : "sql";
-
-        const response = toggleToLanguage(ev, destinationLanguage, {
-          force: true,
-        });
-
-        if (response === "sql") {
-          const actions = ev.state.facet(cellActionsState);
-          actions.afterToggleSQL();
-        }
-
-        return response !== false;
-      },
-    },
+      run: toggleSQL,
+    }),
   ]);
 }
 

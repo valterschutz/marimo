@@ -74,6 +74,10 @@ export type AIModelKey = keyof Pick<
   "chat_model" | "edit_model" | "autocomplete_model"
 >;
 
+// The scope is checked when the binding is resolved, so that one unknown
+// scope rejects that binding rather than the whole config.
+const BindingSchema = z.object({ key: z.string(), scope: z.string() });
+
 export const UserConfigSchema = z
   .looseObject({
     completion: z
@@ -117,7 +121,12 @@ export const UserConfigSchema = z
     keymap: z
       .looseObject({
         preset: z.enum(["default", "vim", "helix"]).prefault("default"),
-        overrides: z.record(z.string(), z.string()).prefault({}),
+        overrides: z
+          .record(
+            z.string(),
+            z.union([z.string(), BindingSchema, z.array(BindingSchema)]),
+          )
+          .prefault({}),
         destructive_delete: z.boolean().prefault(true),
       })
       .prefault({}),

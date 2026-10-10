@@ -75,6 +75,29 @@ class SaveConfig(TypedDict):
     format_on_save: bool
 
 
+ShortcutScope = Literal["editor", "cell-command", "notebook"]
+
+
+@mddoc
+@dataclass
+class KeymapBinding(TypedDict):
+    """A key bound to a keymap action, and the shortcut scope it is active in.
+
+    **Keys.**
+
+    - `key`: a chord such as `"Ctrl-Shift-k"`, or space-separated chords such
+      as `"g g"` (cell-command scope only)
+    - `scope`: `"editor"` (with editor focus only), `"cell-command"` (in cell
+      command mode only) or `"notebook"` (in both)
+    """
+
+    key: str
+    scope: ShortcutScope
+
+
+KeymapOverride = str | KeymapBinding | list[KeymapBinding]
+
+
 @mddoc
 @dataclass
 class KeymapConfig(TypedDict):
@@ -83,13 +106,15 @@ class KeymapConfig(TypedDict):
     **Keys.**
 
     - `preset`: one of `"default"`, `"vim"` or `"helix"`
-    - `overrides`: a dict of keymap actions to their keymap override
+    - `overrides`: a dict of keymap actions to their keymap override: a key in
+      the action's default scope (`""` disables the action), a binding, or a
+      list of bindings
     - `vimrc`: path to a vimrc file to load keymaps from
     - `destructive_delete`: if `True`, allows deleting cells with content.
     """
 
     preset: Literal["default", "vim", "helix"]
-    overrides: NotRequired[dict[str, str]]
+    overrides: NotRequired[dict[str, KeymapOverride]]
     vimrc: NotRequired[str | None]
     destructive_delete: NotRequired[bool]
 

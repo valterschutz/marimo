@@ -32,6 +32,7 @@ describe("HotkeyProvider platform separation", () => {
       "cell.run": {
         name: "Run cell",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: {
           main: "Ctrl-Enter",
           windows: "Alt-Enter",
@@ -40,6 +41,7 @@ describe("HotkeyProvider platform separation", () => {
       "cell.runAndNewBelow": {
         name: "Run and new below",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "Shift-Enter",
       },
     });
@@ -59,6 +61,7 @@ describe("HotkeyProvider platform separation", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: {
           main: "Mod-Shift-F",
           mac: "Cmd-Option-F",
@@ -141,5 +144,146 @@ describe("OverridingHotkeyProvider", () => {
       { platform: "mac" },
     );
     expect(provider.getHotkey("cell.run").key).toBe("");
+  });
+});
+
+describe("shortcut scopes", () => {
+  it("activates a cell command binding only in cell command scope", () => {
+    const provider = new OverridingHotkeyProvider(
+      { "cell.createBelow": { key: "o", scope: "cell-command" } },
+      { platform: "linux" },
+    );
+    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual([
+      "o",
+    ]);
+    expect(provider.getKeys("cell.createBelow", "editor", "notebook")).toEqual(
+      [],
+    );
+  });
+});
+
+describe("binding resolution", () => {
+  const linux = (
+    overrides: ConstructorParameters<typeof OverridingHotkeyProvider>[0],
+    preset?: "default" | "vim" | "helix",
+  ) => new OverridingHotkeyProvider(overrides, { platform: "linux", preset });
+
+  it("keeps cell-level actions out of the editor by default", () => {
+    const provider = linux({});
+    expect(provider.getKeys("cell.createBelow", "editor", "notebook")).toEqual(
+      [],
+    );
+    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual([
+      "Ctrl-Shift-p",
+    ]);
+    expect(provider.getKeys("cell.run", "notebook")).toEqual(["Ctrl-Enter"]);
+    expect(provider.getKeys("cell.format", "editor")).toEqual(["Ctrl-b"]);
+  });
+
+  it("puts a plain key override in the action's default scope", () => {
+    const provider = linux({ "cell.complete": "Ctrl-x" });
+    expect(provider.getBindings("cell.complete")).toEqual([
+      { key: "Ctrl-x", scope: "editor" },
+    ]);
+  });
+
+  it("accepts several bindings in different scopes", () => {
+    const provider = linux({
+      "cell.createBelow": [
+        { key: "o", scope: "cell-command" },
+        { key: "Ctrl-Shift-o", scope: "notebook" },
+      ],
+    });
+    expect(provider.getKeys("cell.createBelow", "cell-command")).toEqual([
+      "o",
+    ]);
+    expect(provider.getKeys("cell.createBelow", "notebook")).toEqual([
+      "Ctrl-Shift-o",
+    ]);
+  });
+
+  it("disables every default binding with an empty override", () => {
+    const provider = linux({ "cell.focusDown": "" }, "helix");
+    expect(provider.getBindings("cell.focusDown")).toEqual([]);
+  });
+
+  it.each([
+    ["notebook", "o"],
+    ["notebook", "Shift-o"],
+    ["editor", "Space"],
+  ] as const)("rejects the typing key %s scope %s", (scope, key) => {
+    const provider = linux({ "cell.run": { key, scope } });
+    expect(provider.getBindings("cell.run")).toEqual([]);
+    expect(provider.getRejectedBindings("cell.run")).toEqual([
+      {
+        binding: { key, scope },
+        reason:
+          "A key without Ctrl, Alt or Cmd would block typing in the editor",
+      },
+    ]);
+  });
+
+  it("accepts named keys and modified keys outside cell command scope", () => {
+    const provider = linux({
+      "cell.run": [
+        { key: "Shift-Enter", scope: "notebook" },
+        { key: "Alt-r", scope: "editor" },
+      ],
+    });
+    expect(provider.getRejectedBindings("cell.run")).toEqual([]);
+  });
+
+  it("only accepts key sequences in cell command scope", () => {
+    const provider = linux({
+      "cell.run": [
+        { key: "r r", scope: "cell-command" },
+        { key: "Ctrl-r Ctrl-r", scope: "notebook" },
+      ],
+    });
+    expect(provider.getBindings("cell.run")).toEqual([
+      { key: "r r", scope: "cell-command" },
+    ]);
+    expect(provider.getRejectedBindings("cell.run")[0].reason).toBe(
+      "Key sequences only work in cell-command scope",
+    );
+  });
+
+  it("rejects a scope the action can't run in", () => {
+    const provider = linux({
+      "cell.toggleComment": { key: "c", scope: "cell-command" },
+    });
+    expect(provider.getBindings("cell.toggleComment")).toEqual([]);
+    expect(provider.getRejectedBindings("cell.toggleComment")[0].reason).toBe(
+      "This action can't run in cell-command scope",
+    );
+  });
+
+  it("takes the default cell command keys from the preset", () => {
+    expect(linux({}, "helix").getKeys("command.openCellBelow", "cell-command"))
+      .toEqual(["o"]);
+    expect(linux({}, "vim").getKeys("command.createCellAfter", "cell-command"))
+      .toEqual(["b", "o"]);
+    expect(linux({}, "vim").getKeys("global.focusTop", "cell-command")).toEqual(
+      ["Ctrl-ArrowUp", "g g"],
+    );
+    expect(linux({}, "helix").getBindings("command.cutCell")).toEqual([]);
+  });
+
+  it("keeps an action's notebook binding when the preset adds cell command keys", () => {
+    expect(linux({}, "helix").getBindings("global.focusTop")).toEqual([
+      { key: "Ctrl-Shift-f", scope: "notebook" },
+      { key: "Ctrl-ArrowUp", scope: "cell-command" },
+      { key: "g g", scope: "cell-command" },
+    ]);
+  });
+
+  it("overrides the preset's keys for an action", () => {
+    const provider = linux(
+      { "command.openCellBelow": { key: "Shift-n", scope: "cell-command" } },
+      "helix",
+    );
+    expect(provider.getKeys("command.openCellBelow", "cell-command")).toEqual([
+      "Shift-n",
+    ]);
   });
 });

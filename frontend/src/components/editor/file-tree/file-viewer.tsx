@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { disableFileDownloadsAtom, hotkeysAtom } from "@/core/config/config";
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import { useRequestClient } from "@/core/network/requests";
 import type { FileInfo } from "@/core/network/types";
 import { filenameAtom } from "@/core/saving/file-state";
@@ -132,9 +133,8 @@ export const FileViewer: React.FC<Props> = ({ file, onOpenNotebook }) => {
     await downloadFile(file.path, data.file.name);
   };
 
-  const saveKeymapExtension = keymap.of([
-    {
-      key: hotkeys.getHotkey("global.save").key,
+  const saveKeymapExtension = keymap.of(
+    editorKeyBindings(hotkeys, "global.save", {
       stopPropagation: true,
       run: () => {
         if (internalValue !== data.contents) {
@@ -143,8 +143,8 @@ export const FileViewer: React.FC<Props> = ({ file, onOpenNotebook }) => {
         }
         return false;
       },
-    },
-  ]);
+    }),
+  );
 
   // Defined before the metadata-only returns so refresh, download, and
   // open-notebook stay available while edit-only copy/save are withheld from

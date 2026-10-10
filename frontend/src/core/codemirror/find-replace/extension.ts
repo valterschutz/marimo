@@ -1,5 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import {
   highlightSelectionMatches,
   selectNextOccurrence,
@@ -25,16 +26,14 @@ export function findReplaceBundle(
         preventDefault: false,
         run: closeFindReplacePanel,
       },
-      {
-        key: hotkeys.getHotkey("cell.selectNextOccurrence").key,
+      ...editorKeyBindings(hotkeys, "cell.selectNextOccurrence", {
         preventDefault: true,
         run: selectNextOccurrence,
-      },
-      {
-        key: hotkeys.getHotkey("cell.findAndReplace").key,
+      }),
+      ...editorKeyBindings(hotkeys, "cell.findAndReplace", {
         preventDefault: true,
         run: openFindReplacePanel,
-      },
+      }),
     ]),
     highlightMatches ? highlightSelectionMatches() : [],
     searchHighlighter,

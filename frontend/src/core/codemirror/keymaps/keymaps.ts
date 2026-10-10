@@ -1,5 +1,6 @@
 /* Copyright 2026 Marimo. All rights reserved. */
 
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import {
   moveCompletionSelection,
   startCompletion,
@@ -133,22 +134,18 @@ const defaultKeymap = once(() => {
 
 const overrideKeymap = (keymap: HotkeyProvider): readonly KeyBinding[] => {
   return [
-    {
-      key: keymap.getHotkey("cell.toggleComment").key,
+    ...editorKeyBindings(keymap, "cell.toggleComment", {
       run: toggleComment,
-    },
-    {
-      key: keymap.getHotkey("cell.toggleBlockComment").key,
+    }),
+    ...editorKeyBindings(keymap, "cell.toggleBlockComment", {
       run: toggleBlockComment,
-    },
-    {
-      key: keymap.getHotkey("cell.copyLineUp").key,
+    }),
+    ...editorKeyBindings(keymap, "cell.copyLineUp", {
       run: copyLineUp,
-    },
-    {
-      key: keymap.getHotkey("cell.copyLineDown").key,
+    }),
+    ...editorKeyBindings(keymap, "cell.copyLineDown", {
       run: copyLineDown,
-    },
+    }),
   ];
 };
 

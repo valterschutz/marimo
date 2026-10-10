@@ -5534,20 +5534,41 @@ export interface components {
       state: "idle" | "running" | "stopped";
     };
     /**
+     * KeymapBinding
+     * @description A key bound to a keymap action, and the shortcut scope it is active in.
+     *
+     *         **Keys.**
+     *
+     *         - `key`: a chord such as `"Ctrl-Shift-k"`, or space-separated chords such
+     *           as `"g g"` (cell-command scope only)
+     *         - `scope`: `"editor"` (with editor focus only), `"cell-command"` (in cell
+     *           command mode only) or `"notebook"` (in both)
+     */
+    KeymapBinding: {
+      key: string;
+      /** @enum {unknown} */
+      scope: "cell-command" | "editor" | "notebook";
+    };
+    /**
      * KeymapConfig
      * @description Configuration for keymaps.
      *
      *         **Keys.**
      *
      *         - `preset`: one of `"default"`, `"vim"` or `"helix"`
-     *         - `overrides`: a dict of keymap actions to their keymap override
+     *         - `overrides`: a dict of keymap actions to their keymap override: a key in
+     *           the action's default scope (`""` disables the action), a binding, or a
+     *           list of bindings
      *         - `vimrc`: path to a vimrc file to load keymaps from
      *         - `destructive_delete`: if `True`, allows deleting cells with content.
      */
     KeymapConfig: {
       destructive_delete?: boolean;
       overrides?: {
-        [key: string]: string;
+        [key: string]:
+          | string
+          | components["schemas"]["KeymapBinding"]
+          | components["schemas"]["KeymapBinding"][];
       };
       /** @enum {unknown} */
       preset: "default" | "helix" | "vim";

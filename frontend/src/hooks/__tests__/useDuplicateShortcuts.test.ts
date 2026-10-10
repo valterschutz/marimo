@@ -4,6 +4,7 @@ import {
   type Hotkey,
   type HotkeyAction,
   HotkeyProvider,
+  type ShortcutScope,
 } from "@/core/hotkeys/hotkeys";
 import {
   findDuplicateShortcuts,
@@ -56,16 +57,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.run": {
         name: "Run cell",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "Mod-Enter",
       },
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "cell.delete": {
         name: "Delete cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Shift-Backspace",
       },
     });
@@ -84,16 +88,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "markdown.bold": {
         name: "Bold",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "cell.run": {
         name: "Run cell",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "Mod-Enter",
       },
     });
@@ -115,26 +122,31 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "markdown.bold": {
         name: "Bold",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "cell.run": {
         name: "Run cell",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "Mod-Enter",
       },
       "cell.complete": {
         name: "Code completion",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Ctrl-Space",
       },
       "cell.signatureHelp": {
         name: "Signature help",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-Enter",
       },
     });
@@ -160,16 +172,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
       "markdown.link": {
         name: "Convert to Link",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
       "global.commandPalette": {
         name: "Show command palette",
         group: "Other",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
     });
@@ -187,16 +202,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.run": {
         name: "Run cell",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "Mod-Enter",
       },
       "global.runAll": {
         name: "Re-run all cells",
         group: "Running Cells",
+        scopes: ["notebook"],
         key: "",
       },
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
     });
@@ -213,11 +231,13 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Cmd-B",
       },
       "markdown.bold": {
         name: "Bold",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "cmd+b",
       },
     });
@@ -234,16 +254,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "markdown.bold": {
         name: "Bold",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-b",
       },
       "markdown.italic": {
         name: "Italic",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-i",
       },
     });
@@ -266,16 +289,19 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
       "markdown.link": {
         name: "Convert to Link",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
       "global.commandPalette": {
         name: "Show command palette",
         group: "Other",
+        scopes: ["notebook"],
         key: "Mod-k",
       },
     });
@@ -294,6 +320,7 @@ describe("findDuplicateShortcuts", () => {
       "cell.format": {
         name: "Format cell",
         group: "Editing",
+        scopes: ["notebook"],
         key: {
           main: "Mod-Shift-F",
           mac: "Cmd-Option-F",
@@ -303,6 +330,7 @@ describe("findDuplicateShortcuts", () => {
       "markdown.bold": {
         name: "Bold",
         group: "Markdown",
+        scopes: ["notebook"],
         key: "Cmd-Option-F", // Duplicate on Mac only
       },
     });
@@ -328,16 +356,19 @@ describe("findDuplicateShortcuts", () => {
         "cell.format": {
           name: "Format cell",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "markdown.bold": {
           name: "Bold",
           group: "Markdown",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "cell.run": {
           name: "Run cell",
           group: "Running Cells",
+          scopes: ["notebook"],
           key: "Mod-Enter",
         },
       });
@@ -356,21 +387,25 @@ describe("findDuplicateShortcuts", () => {
         "cell.format": {
           name: "Format cell",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "markdown.bold": {
           name: "Bold",
           group: "Markdown",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "cell.run": {
           name: "Run cell",
           group: "Running Cells",
+          scopes: ["notebook"],
           key: "Mod-Enter",
         },
         "cell.complete": {
           name: "Code completion",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-Enter",
         },
       });
@@ -392,11 +427,13 @@ describe("findDuplicateShortcuts", () => {
         "cell.format": {
           name: "Format cell",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "markdown.bold": {
           name: "Bold",
           group: "Markdown",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
       });
@@ -416,21 +453,25 @@ describe("findDuplicateShortcuts", () => {
         "cell.format": {
           name: "Format cell",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "markdown.bold": {
           name: "Bold",
           group: "Markdown",
+          scopes: ["notebook"],
           key: "Mod-b",
         },
         "markdown.italic": {
           name: "Italic",
           group: "Markdown",
+          scopes: ["notebook"],
           key: "Mod-i",
         },
         "cell.hideCode": {
           name: "Hide cell code",
           group: "Editing",
+          scopes: ["notebook"],
           key: "Mod-i",
         },
       });
@@ -444,6 +485,49 @@ describe("findDuplicateShortcuts", () => {
       expect(result.hasDuplicate("cell.hideCode")).toBe(false);
       expect(result.hasDuplicate("markdown.bold")).toBe(false);
       expect(result.hasDuplicate("markdown.italic")).toBe(false);
+    });
+  });
+
+  describe("shortcut scopes", () => {
+    const scoped = (
+      first: ShortcutScope,
+      second: ShortcutScope,
+    ): HotkeyProvider =>
+      new HotkeyProvider(
+        createHotkeys({
+          "cell.createBelow": {
+            name: "New cell below",
+            group: "Creation and Ordering",
+            scopes: [first],
+            key: "o",
+          },
+          "cell.toggleComment": {
+            name: "Toggle comment",
+            group: "Editing",
+            scopes: [second],
+            key: "o",
+          },
+        }),
+        { platform: "linux" },
+      );
+
+    it("allows the same key in editor and cell command scope", () => {
+      const result = findDuplicateShortcuts(scoped("cell-command", "editor"));
+      expect(result.duplicates).toEqual([]);
+      expect(result.hasDuplicate("cell.createBelow")).toBe(false);
+    });
+
+    it.each([
+      ["cell-command", "cell-command"],
+      ["editor", "editor"],
+      ["notebook", "editor"],
+      ["cell-command", "notebook"],
+    ] as const)("flags the same key in %s and %s scope", (first, second) => {
+      const result = findDuplicateShortcuts(scoped(first, second));
+      expect(result.hasDuplicate("cell.createBelow")).toBe(true);
+      expect(result.getDuplicatesFor("cell.createBelow")).toEqual([
+        "cell.toggleComment",
+      ]);
     });
   });
 });

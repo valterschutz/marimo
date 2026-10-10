@@ -8,7 +8,11 @@ from unittest.mock import patch
 
 import pytest
 
-from marimo._config.config import PartialMarimoConfig, merge_default_config
+from marimo._config.config import (
+    KeymapOverride,
+    PartialMarimoConfig,
+    merge_default_config,
+)
 from marimo._config.manager import (
     EnvConfigManager,
     MarimoConfigManager,
@@ -226,6 +230,31 @@ def test_save_config_round_trips_helix_keymap(tmp_path: Path) -> None:
     reloaded = UserConfigManager()
     reloaded.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
     assert reloaded.get_config()["keymap"]["preset"] == "helix"
+
+
+def test_save_config_round_trips_scoped_keymap_overrides(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "marimo.toml"
+    overrides: dict[str, KeymapOverride] = {
+        "cell.complete": "Ctrl-x",
+        "cell.delete": {"key": "d d", "scope": "cell-command"},
+        "cell.createBelow": [
+            {"key": "o", "scope": "cell-command"},
+            {"key": "Ctrl-Shift-o", "scope": "notebook"},
+        ],
+    }
+    manager = UserConfigManager()
+    manager.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
+    manager.save_config(
+        PartialMarimoConfig(
+            keymap={"preset": "helix", "overrides": overrides}
+        )
+    )
+
+    reloaded = UserConfigManager()
+    reloaded.get_config_path = lambda: str(config_path)  # type: ignore[method-assign]
+    assert reloaded.get_config()["keymap"].get("overrides") == overrides
 
 
 def test_drop_none_values_strips_nested_none() -> None:

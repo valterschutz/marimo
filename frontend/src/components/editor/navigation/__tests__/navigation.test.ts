@@ -19,10 +19,12 @@ import {
   platformAtom,
   userConfigAtom,
 } from "@/core/config/config";
+import type { BindingOverride } from "@/core/hotkeys/hotkeys";
 import { requestClientAtom } from "@/core/network/requests";
 import { store } from "@/core/state/jotai";
 import { variablesAtom } from "@/core/variables/state";
 import type { Variables } from "@/core/variables/types";
+import { useHotkey } from "@/hooks/useHotkey";
 import type { CellActionsDropdownHandle } from "../../cell/cell-actions";
 import {
   useCellEditorNavigationProps,
@@ -1117,9 +1119,7 @@ describe("useCellNavigationProps", () => {
     it("should paste after the focused cell when 'p' is pressed", () => {
       pressKeys(mockCellId, [{ key: "p" }]);
 
-      expect(mockPasteCell).toHaveBeenCalledExactlyOnceWith(mockCellId, {
-        before: false,
-      });
+      expect(mockPasteCell).toHaveBeenCalledExactlyOnceWith(mockCellId);
     });
 
     it("should paste before the focused cell when 'P' is pressed", () => {
@@ -1919,6 +1919,13 @@ describe("useCellNavigationProps", () => {
       const config = defaultUserConfig();
       store.set(userConfigAtom, {
         ...config,
+        // AI completion is in editor scope by default.
+        keymap: {
+          ...config.keymap,
+          overrides: {
+            "cell.aiCompletion": { key: "Mod-Shift-e", scope: "notebook" },
+          },
+        },
         ai: {
           ...config.ai,
           models: {
@@ -2395,6 +2402,105 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.createNewCell).not.toHaveBeenCalled();
       expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("configured bindings", () => {
+    const configure = (
+      overrides: Record<string, BindingOverride>,
+      preset: "default" | "vim" | "helix" = "default",
+    ) => {
+      store.set(configOverridesAtom, { keymap: { preset, overrides } });
+    };
+
+    const pressKeys = (events: Array<Partial<React.KeyboardEvent>>) => {
+      const { result } = renderWithProvider(() =>
+        useCellNavigationProps(mockCellId, options),
+      );
+      // Key sequences are tracked per event target.
+      const target = document.createElement("div");
+      const mockEvents = events.map((props) =>
+        Mocks.keyboardEvent({ target, ...props }),
+      );
+      act(() => {
+        for (const mockEvent of mockEvents) {
+          result.current.onKeyDown?.(mockEvent);
+        }
+      });
+      return mockEvents;
+    };
+
+    it("runs a cell command binding on a bare key", () => {
+      configure({ "cell.createBelow": { key: "o", scope: "cell-command" } });
+      const [mockEvent] = pressKeys([{ key: "o" }]);
+      expect(mockCellActions.createNewCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        before: false,
+      });
+      expect(mockEvent.preventDefault).toHaveBeenCalled();
+    });
+
+    it("runs a configured key sequence", () => {
+      configure({ "cell.run": { key: "r r", scope: "cell-command" } });
+      pressKeys([{ key: "r" }, { key: "r" }]);
+      expect(mockRunCell).toHaveBeenCalledWith([mockCellId]);
+    });
+
+    it("runs a cell action's notebook binding", () => {
+      configure({ "cell.createBelow": { key: "Ctrl-Alt-n", scope: "notebook" } });
+      pressKeys([{ key: "n", ctrlKey: true, altKey: true }]);
+      expect(mockCellActions.createNewCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        before: false,
+      });
+    });
+
+    it("ignores editor scope bindings", () => {
+      configure({ "cell.run": { key: "Alt-r", scope: "editor" } });
+      const [mockEvent] = pressKeys([{ key: "r", altKey: true }]);
+      expect(mockRunCell).not.toHaveBeenCalled();
+      expect(mockEvent.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it("prefers a cell command binding over a notebook binding on the same key", () => {
+      configure({
+        "cell.createBelow": { key: "Ctrl-Shift-o", scope: "notebook" },
+        "cell.createAbove": { key: "Ctrl-Shift-o", scope: "cell-command" },
+      });
+      pressKeys([{ key: "o", ctrlKey: true, shiftKey: true }]);
+      expect(mockCellActions.createNewCell).toHaveBeenCalledTimes(1);
+      expect(mockCellActions.createNewCell).toHaveBeenCalledWith({
+        cellId: mockCellId,
+        before: true,
+      });
+    });
+
+    it("rebinds a preset key", () => {
+      configure(
+        { "command.openCellBelow": { key: "n", scope: "cell-command" } },
+        "helix",
+      );
+      pressKeys([{ key: "o" }]);
+      expect(mockCellActions.createNewCell).not.toHaveBeenCalled();
+      pressKeys([{ key: "n" }]);
+      expect(mockCellActions.createNewCell).toHaveBeenCalledWith(
+        expect.objectContaining({ cellId: mockCellId, before: false }),
+      );
+    });
+
+    it("runs a registered notebook action from a cell command binding", () => {
+      configure({ "global.runAll": { key: "Shift-r", scope: "cell-command" } });
+      const runAll = vi.fn();
+      const { result } = renderWithProvider(() => {
+        useHotkey("global.runAll", runAll);
+        return useCellNavigationProps(mockCellId, options);
+      });
+      act(() => {
+        result.current.onKeyDown?.(
+          Mocks.keyboardEvent({ key: "R", shiftKey: true }),
+        );
+      });
+      expect(runAll).toHaveBeenCalled();
     });
   });
 });

@@ -1,4 +1,5 @@
 /* Copyright 2026 Marimo. All rights reserved. */
+import { editorKeyBindings } from "@/core/hotkeys/shortcuts";
 import {
   acceptCompletion,
   closeBrackets,
@@ -302,8 +303,7 @@ export const basicBundle = (opts: CodeMirrorSetupOpts): Extension[] => {
         },
         preventDefault: true,
       },
-      {
-        key: hotkeys.getHotkey("completion.moveDown").key,
+      ...editorKeyBindings(hotkeys, "completion.moveDown", {
         run: (cm) => {
           if (completionStatus(cm.state) !== null) {
             moveCompletionSelection(true)(cm);
@@ -312,9 +312,8 @@ export const basicBundle = (opts: CodeMirrorSetupOpts): Extension[] => {
           return false;
         },
         preventDefault: true,
-      },
-      {
-        key: hotkeys.getHotkey("completion.moveUp").key,
+      }),
+      ...editorKeyBindings(hotkeys, "completion.moveUp", {
         run: (cm) => {
           if (completionStatus(cm.state) !== null) {
             moveCompletionSelection(false)(cm);
@@ -323,7 +322,7 @@ export const basicBundle = (opts: CodeMirrorSetupOpts): Extension[] => {
           return false;
         },
         preventDefault: true,
-      },
+      }),
     ]),
     keymap.of([...historyKeymap, indentWithTab]),
   ];

@@ -2,7 +2,7 @@
 
 import type { KeyBinding } from "@codemirror/view";
 import { Logger } from "@/utils/Logger";
-import { NOT_SET } from "./hotkeys";
+import { type HotkeyAction, type HotkeyProvider, NOT_SET } from "./hotkeys";
 
 /**
  * Check if the current platform is Mac
@@ -175,4 +175,18 @@ export function duplicateWithCtrlModifier<T extends KeyBinding>(
     return [binding];
   }
   return [binding, { ...binding, key: binding.key.replaceAll("Cmd", "Ctrl") }];
+}
+
+/**
+ * CodeMirror bindings that run `binding` for each of the action's keys that
+ * are active with editor focus: those in editor and notebook scope.
+ */
+export function editorKeyBindings<T extends Omit<KeyBinding, "key">>(
+  hotkeys: HotkeyProvider,
+  action: HotkeyAction,
+  binding: T,
+): (T & { key: string })[] {
+  return hotkeys
+    .getKeys(action, "editor", "notebook")
+    .map((key) => ({ ...binding, key }));
 }

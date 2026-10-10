@@ -3008,18 +3008,43 @@ components:
       - state
       title: KernelStatusResponse
       type: object
+    KeymapBinding:
+      description: "A key bound to a keymap action, and the shortcut scope it is active\
+        \ in.\n\n    **Keys.**\n\n    - `key`: a chord such as `\"Ctrl-Shift-k\"`,\
+        \ or space-separated chords such\n      as `\"g g\"` (cell-command scope only)\n\
+        \    - `scope`: `\"editor\"` (with editor focus only), `\"cell-command\"`\
+        \ (in cell\n      command mode only) or `\"notebook\"` (in both)"
+      properties:
+        key:
+          type: string
+        scope:
+          enum:
+          - cell-command
+          - editor
+          - notebook
+      required:
+      - key
+      - scope
+      title: KeymapBinding
+      type: object
     KeymapConfig:
       description: "Configuration for keymaps.\n\n    **Keys.**\n\n    - `preset`:\
         \ one of `\"default\"`, `\"vim\"` or `\"helix\"`\n    - `overrides`: a dict\
-        \ of keymap actions to their keymap override\n    - `vimrc`: path to a vimrc\
-        \ file to load keymaps from\n    - `destructive_delete`: if `True`, allows\
-        \ deleting cells with content."
+        \ of keymap actions to their keymap override: a key in\n      the action's\
+        \ default scope (`\"\"` disables the action), a binding, or a\n      list\
+        \ of bindings\n    - `vimrc`: path to a vimrc file to load keymaps from\n\
+        \    - `destructive_delete`: if `True`, allows deleting cells with content."
       properties:
         destructive_delete:
           type: boolean
         overrides:
           additionalProperties:
-            type: string
+            anyOf:
+            - type: string
+            - $ref: '#/components/schemas/KeymapBinding'
+            - items:
+                $ref: '#/components/schemas/KeymapBinding'
+              type: array
           type: object
         preset:
           enum:

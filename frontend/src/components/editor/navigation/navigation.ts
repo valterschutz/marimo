@@ -20,8 +20,7 @@ import {
   useCellActions,
 } from "@/core/cells/cells";
 import { useCellFocusActions } from "@/core/cells/focus";
-import type { CellId } from "@/core/cells/ids";
-import { HTMLCellId, SETUP_CELL_ID } from "@/core/cells/ids";
+import { CellId, HTMLCellId, SETUP_CELL_ID } from "@/core/cells/ids";
 import {
   clearPendingCutAtom,
   pendingCutCellIdsAtom,
@@ -40,6 +39,7 @@ import {
   convertCellToMarkdown,
   getCurrentLanguageAdapter,
 } from "@/core/codemirror/language/commands";
+import { toggleMarkdown, toggleSQL } from "@/core/codemirror/extensions";
 import { switchLanguage } from "@/core/codemirror/language/extension";
 import { LanguageAdapters } from "@/core/codemirror/language/LanguageAdapters";
 import {
@@ -49,18 +49,26 @@ import {
   keymapPresetAtom,
   userConfigAtom,
 } from "@/core/config/config";
+import { useRegisteredActions } from "@/core/hotkeys/actions";
 import type { HotkeyAction } from "@/core/hotkeys/hotkeys";
 import { parseShortcut } from "@/core/hotkeys/shortcuts";
 import { useRequestClient } from "@/core/network/requests";
 import { useSaveNotebook } from "@/core/saving/save-component";
 import { Events } from "@/utils/events";
 import type { CollapsibleTree } from "@/utils/id-tree";
+import { retryWithTimeout } from "@/utils/timeout";
 import type { CellActionsDropdownHandle } from "../cell/cell-actions";
 import { useDeleteManyCellsCallback } from "../cell/useDeleteCell";
 import { useRunCells } from "../cell/useRunCells";
 import { useCellClipboard } from "./clipboard";
-import { getCommandModeKeySequenceTable } from "./command-mode-keymap";
-import { focusCell, focusCellEditor, raf2 } from "./focus-utils";
+import { handleCellCommandBindings } from "./cell-command-bindings";
+import {
+  alignCellInView,
+  focusCell,
+  focusCellEditor,
+  raf2,
+  type ViewAlignment,
+} from "./focus-utils";
 import {
   getIsSelectMode,
   getSelectedCells,
@@ -69,7 +77,6 @@ import {
   useIsSelectMode,
 } from "./selection";
 import { useTemporarilyShownCodeActions } from "./state";
-import { handleVimKeybinding } from "./vim-bindings";
 
 interface HotkeyHandler {
   handle: (cellId: CellId) => boolean;
@@ -181,8 +188,6 @@ function getDataForCellId(element: Element | null | undefined): CellId | null {
   return cellId as CellId;
 }
 
-type KeymapHandlers = Record<string, () => boolean>;
-
 /**
  * Props for cell keyboard navigation,
  * to manage focus and selection.
@@ -240,11 +245,7 @@ export function useCellNavigationProps(
   };
 
   const hotkeys = useAtomValue(hotkeysAtom);
-
-  const isShortcutPressed = (
-    shortcut: HotkeyAction,
-    evt: React.KeyboardEvent<HTMLElement>,
-  ) => parseShortcut(hotkeys.getHotkey(shortcut).key)(evt.nativeEvent || evt);
+  const registeredActions = useRegisteredActions();
 
   // Callbacks occur at the cell level and descedants.
   const focusWithinProps = useCellFocusProps(cellId, editorView);
@@ -267,133 +268,76 @@ export function useCellNavigationProps(
         return true;
       };
 
-      const keymaps = {
-        // Move to the top of the notebook.
-        "Mod+ArrowUp": () => {
-          actions.focusTopCell();
-          selectionActions.clear();
-          return true;
-        },
-        // Move to the bottom of the notebook.
-        "Mod+ArrowDown": () => {
-          actions.focusBottomCell();
-          selectionActions.clear();
-          return true;
-        },
-        // Move up
-        ArrowUp: () => {
-          actions.focusCell({ cellId, where: "before" });
-          selectionActions.clear();
-          return true;
-        },
-        // Move down
-        ArrowDown: () => {
-          actions.focusCell({ cellId, where: "after" });
-          selectionActions.clear();
-          return true;
-        },
-        // Move left across columns
-        ArrowLeft: () => {
-          if (canMoveX) {
-            const notebook = store.get(notebookAtom);
-            const column = notebook.cellIds.findWithId(cellId);
-            const columnIndex = notebook.cellIds.indexOf(column);
-            const leftColumn = notebook.cellIds.at(columnIndex - 1);
-
-            if (leftColumn && leftColumn.length > 0) {
-              const leftCellId = findClosestAdjacentCell(cellId, leftColumn);
-              actions.focusCell({ cellId: leftCellId, where: "exact" });
-
-              selectionActions.clear();
-              return true;
-            }
-          }
-          return false;
-        },
-        // Move right across columns
-        ArrowRight: () => {
-          if (canMoveX) {
-            const notebook = store.get(notebookAtom);
-            const column = notebook.cellIds.findWithId(cellId);
-            const columnIndex = notebook.cellIds.indexOf(column);
-            const rightColumn = notebook.cellIds.at(columnIndex + 1);
-
-            if (rightColumn && rightColumn.length > 0) {
-              const rightCellId = findClosestAdjacentCell(cellId, rightColumn);
-              actions.focusCell({ cellId: rightCellId, where: "exact" });
-
-              selectionActions.clear();
-              return true;
-            }
-          }
-          return false;
-        },
-        // Select up
-        "Shift+ArrowUp": () => {
-          // Select self
-          const allCellIds = store.get(cellIdsAtom);
-          selectionActions.extend({ cellId, allCellIds });
-          // Select to where focus is going
-          const beforeCellId = allCellIds.findWithId(cellId).before(cellId);
-          if (beforeCellId) {
-            selectionActions.extend({ cellId: beforeCellId, allCellIds });
-          }
-          // Focus the cell
-          actions.focusCell({ cellId, where: "before" });
-          return true;
-        },
-        // Select down
-        "Shift+ArrowDown": () => {
-          // Select self
-          const allCellIds = store.get(cellIdsAtom);
-          selectionActions.extend({ cellId, allCellIds });
-          // Select to where focus is going
-          const afterCellId = allCellIds.findWithId(cellId).after(cellId);
-          if (afterCellId) {
-            selectionActions.extend({ cellId: afterCellId, allCellIds });
-          }
-          // Focus the cell
-          actions.focusCell({ cellId, where: "after" });
-          return true;
-        },
-        // Clear selection
-        Escape: () => {
-          // Clear pending cut state if any
-          const pendingCutCellIds = store.get(pendingCutCellIdsAtom);
-          if (pendingCutCellIds.size > 0) {
-            store.set(clearPendingCutAtom);
-            return true;
-          }
-          // Also leaves Helix select mode when this cell isn't selected.
-          if (isSelected || getIsSelectMode(store)) {
-            selectionActions.clear();
-            return true;
-          }
-          return false;
-        },
-        // Enter will focus the cell editor.
-        Enter: () => focusEditor("normal"),
-        // Command mode: Saving
-        s: () => {
-          // Helix selects with `s`; saving stays on the global save hotkey.
-          if (keymapPreset === "helix") {
-            return false;
-          }
-          saveOrNameNotebook();
-          return true;
-        },
-      } satisfies KeymapHandlers;
-
-      // Handle keymaps.
-      for (const [key, handler] of Object.entries(keymaps)) {
-        if (parseShortcut(key)(evt)) {
-          const success = handler();
-          if (success) {
-            evt.preventDefault();
-            return;
-          }
+      // Selects this cell and the one focus moves to, then moves focus there.
+      const extendSelection = (where: "before" | "after") => {
+        const allCellIds = store.get(cellIdsAtom);
+        selectionActions.extend({ cellId, allCellIds });
+        const column = allCellIds.findWithId(cellId);
+        const nextCellId =
+          where === "before" ? column.before(cellId) : column.after(cellId);
+        if (nextCellId) {
+          selectionActions.extend({ cellId: nextCellId, allCellIds });
         }
-      }
+        actions.focusCell({ cellId, where });
+        return true;
+      };
+
+      // Cell select mode extends the selection instead of moving focus.
+      const moveFocus = (where: "before" | "after") => {
+        if (getIsSelectMode(store)) {
+          return extendSelection(where);
+        }
+        actions.focusCell({ cellId, where });
+        selectionActions.clear();
+        return true;
+      };
+
+      const moveFocusAcrossColumns = (offset: -1 | 1) => {
+        if (!canMoveX) {
+          return false;
+        }
+        const notebook = store.get(notebookAtom);
+        const column = notebook.cellIds.findWithId(cellId);
+        const columnIndex = notebook.cellIds.indexOf(column);
+        const adjacentColumn = notebook.cellIds.at(columnIndex + offset);
+        if (!adjacentColumn || adjacentColumn.length === 0) {
+          return false;
+        }
+        const adjacentCellId = findClosestAdjacentCell(cellId, adjacentColumn);
+        actions.focusCell({ cellId: adjacentCellId, where: "exact" });
+        selectionActions.clear();
+        return true;
+      };
+
+      // Autofocus keeps cell-level focus when a cell is created from command
+      // mode, so open the new cell's editor, in insert mode under Helix like
+      // its `o`/`O`. The cell renders, then builds and attaches its editor,
+      // over the next frames.
+      const openNewCell = (before: boolean) => {
+        const newCellId = CellId.create();
+        actions.createNewCell({ cellId, before, autoFocus: true, newCellId });
+        let view: EditorView | null | undefined;
+        retryWithTimeout(
+          () => {
+            if (!view) {
+              view = ensureCellEditorView(newCellId);
+              if (view && keymapPreset === "helix") {
+                setHelixMode(view, "insert");
+              }
+            }
+            view?.focus();
+            return view?.hasFocus ?? false;
+          },
+          { retries: 10, delay: 20 },
+        );
+        return true;
+      };
+
+      // Helix's view mode, applied to the focused cell instead of a line.
+      const alignCell = (alignment: ViewAlignment) => {
+        alignCellInView(cellId, alignment);
+        return true;
+      };
 
       const selectedCells = getSelectedCells(store);
 
@@ -409,8 +353,66 @@ export function useCellNavigationProps(
         return hasRunningCell ? null : cellIds;
       };
 
-      // Shortcuts
-      const shortcuts = {
+      // Handlers for the actions this cell runs
+      const shortcuts: Partial<
+        Record<HotkeyAction, HotkeyHandler["handle"] | HotkeyHandler>
+      > = {
+        // Navigation
+        "cell.focusUp": () => moveFocus("before"),
+        "cell.focusDown": () => moveFocus("after"),
+        "command.focusLeft": () => moveFocusAcrossColumns(-1),
+        "command.focusRight": () => moveFocusAcrossColumns(1),
+        "global.focusTop": () => {
+          actions.focusTopCell();
+          selectionActions.clear();
+          return true;
+        },
+        "global.focusBottom": () => {
+          actions.focusBottomCell();
+          selectionActions.clear();
+          return true;
+        },
+        "command.alignCenter": () => alignCell("center"),
+        "command.alignTop": () => alignCell("start"),
+        "command.alignBottom": () => alignCell("end"),
+        "command.focusEditor": () => focusEditor("normal"),
+        "command.focusEditorInsertMode": () => focusEditor("insert"),
+
+        // Selection
+        "command.extendSelectionUp": () => extendSelection("before"),
+        "command.extendSelectionDown": () => extendSelection("after"),
+        "command.toggleSelectMode": () => {
+          if (getIsSelectMode(store)) {
+            selectionActions.setSelectMode({ selectMode: false });
+            return true;
+          }
+          // Select mode always shows its ring on at least the focused cell.
+          if (!selectedCells.has(cellId)) {
+            selectionActions.select({ cellId });
+          }
+          selectionActions.setSelectMode({ selectMode: true });
+          return true;
+        },
+        "command.clearSelection": () => {
+          // Clear pending cut state if any
+          const pendingCutCellIds = store.get(pendingCutCellIdsAtom);
+          if (pendingCutCellIds.size > 0) {
+            store.set(clearPendingCutAtom);
+            return true;
+          }
+          // Also leaves select mode when this cell isn't selected.
+          if (isSelected || getIsSelectMode(store)) {
+            selectionActions.clear();
+            return true;
+          }
+          return false;
+        },
+
+        "global.save": () => {
+          saveOrNameNotebook();
+          return true;
+        },
+
         // Cell actions
         "cell.run": addSingleHandler((cellIds) => {
           runCells(cellIds);
@@ -525,14 +527,6 @@ export function useCellNavigationProps(
 
           return true;
         }),
-        "cell.focusDown": (cellId) => {
-          actions.focusCell({ cellId, where: "after" });
-          return true;
-        },
-        "cell.focusUp": (cellId) => {
-          actions.focusCell({ cellId, where: "before" });
-          return true;
-        },
         "cell.sendToBottom": addSingleHandler((cellIds) => {
           cellIds.forEach((cellId) => {
             actions.sendToBottom({ cellId });
@@ -602,8 +596,10 @@ export function useCellNavigationProps(
 
           return true;
         }),
+        // Leaves select mode, like Helix's `y`.
         "command.copyCell": addSingleHandler((cellIds) => {
           copyCells(cellIds);
+          selectionActions.setSelectMode({ selectMode: false });
           return true;
         }),
         "command.cellToMarkdown": addSingleHandler((cellIds) => {
@@ -644,8 +640,12 @@ export function useCellNavigationProps(
           cutCells(cellIds);
           return true;
         }),
-        "command.pasteCell": (cellIds) => {
-          pasteAtCell(cellIds);
+        "command.pasteCell": (cellId) => {
+          pasteAtCell(cellId);
+          return true;
+        },
+        "command.pasteCellAbove": (cellId) => {
+          pasteAtCell(cellId, { before: true });
           return true;
         },
         "command.createCellBefore": (cellId) => {
@@ -702,82 +702,73 @@ export function useCellNavigationProps(
           pendingDeleteService.clear();
           return true;
         },
-      } satisfies Partial<
-        Record<HotkeyAction, HotkeyHandler["handle"] | HotkeyHandler>
-      >;
-
-      // Keymaps for the current preset's command mode, if any.
-      const commandModeTable = getCommandModeKeySequenceTable(keymapPreset, {
-        focus: keymaps,
-        cellId,
-        selectedCells,
-        selectMode: getIsSelectMode(store),
-        toggleSelectMode: () => {
-          if (getIsSelectMode(store)) {
-            selectionActions.setSelectMode({ selectMode: false });
-            return true;
-          }
-          // Select mode always shows its ring on at least the focused cell.
-          if (!selectedCells.has(cellId)) {
-            selectionActions.select({ cellId });
-          }
-          selectionActions.setSelectMode({ selectMode: true });
-          return true;
-        },
-        exitSelectMode: () =>
-          selectionActions.setSelectMode({ selectMode: false }),
-        deleteCell: () => shortcuts["cell.delete"](),
-        deleteCellWithClipboardCopy: () => {
-          // Helix's `d` deletes immediately; destructive delete is implied
-          // by choosing the preset, so this skips the pending-delete flow.
+        // Like Helix's `d`: deletes immediately, since destructive delete is
+        // implied by binding it, and leaves select mode.
+        "command.deleteCellToClipboard": () => {
           const cellIds = getCellIdsToDelete();
           if (!cellIds) {
             return false;
           }
           copyCells(cellIds);
           deleteCells({ cellIds });
+          selectionActions.setSelectMode({ selectMode: false });
           return true;
         },
-        moveCellsUp: (cellIds) => shortcuts["cell.moveUp"].bulkHandle(cellIds),
-        moveCellsDown: (cellIds) =>
-          shortcuts["cell.moveDown"].bulkHandle(cellIds),
-        copyCells,
-        pasteAtCell,
-        createNewCell: actions.createNewCell,
-        undoDeleteCell: actions.undoDeleteCell,
-        focusEditorInInsertMode: () => focusEditor("insert"),
-      });
-      if (
-        commandModeTable &&
-        handleVimKeybinding(evt.nativeEvent || evt, commandModeTable)
-      ) {
+        "command.undoDelete": () => {
+          actions.undoDeleteCell();
+          return true;
+        },
+        "command.openCellAbove": () => openNewCell(true),
+        "command.openCellBelow": () => openNewCell(false),
+        "cell.viewAsMarkdown": (cellId) => {
+          const view = ensureCellEditorView(cellId);
+          return view ? toggleMarkdown(view) : false;
+        },
+        "cell.viewAsSQL": (cellId) => {
+          const view = ensureCellEditorView(cellId);
+          return view ? toggleSQL(view) : false;
+        },
+      };
+
+      // Runs an action on this cell, or on the cell selection if it has
+      // several cells. An action without a handler here, such as a notebook
+      // action bound in cell command scope, runs its registered handler.
+      const runAction = (action: HotkeyAction): boolean => {
+        const handler = shortcuts[action];
+        if (!handler) {
+          const registered = registeredActions[action];
+          if (!registered) {
+            return false;
+          }
+          registered();
+          return true;
+        }
+        if (typeof handler === "function") {
+          return handler(cellId);
+        }
+        return selectedCells.size >= 2
+          ? handler.bulkHandle([...selectedCells])
+          : handler.handle(cellId);
+      };
+
+      const nativeEvent = evt.nativeEvent || evt;
+
+      // Cell command scope bindings take precedence over notebook ones.
+      if (handleCellCommandBindings(nativeEvent, hotkeys, runAction)) {
         evt.preventDefault();
         return;
       }
 
-      // Handle the shortcut
-      for (const [shortcut, handler] of Object.entries(shortcuts)) {
-        if (isShortcutPressed(shortcut as HotkeyAction, evt)) {
-          // If the handler is a function, it's a single-cell handler
-          // and we only operate on the currently focused cell.
-          if (typeof handler === "function") {
-            const success = handler(cellId);
-            if (success) {
-              evt.preventDefault();
-              return;
-            }
-          } else {
-            // If the handler is an object, it's supports bulk handling.
-            // If we have multiple cells selected, use the bulk handler,
-            // otherwise use the single-cell handler on the focused cell.
-            const success =
-              selectedCells.size >= 2
-                ? handler.bulkHandle([...selectedCells])
-                : handler.handle(cellId);
-            if (success) {
-              evt.preventDefault();
-              return;
-            }
+      // Notebook scope bindings of actions this cell handles. An action with a
+      // registered document listener handles its own notebook bindings.
+      for (const action of hotkeys.iterate()) {
+        if (!shortcuts[action] || registeredActions[action]) {
+          continue;
+        }
+        const keys = hotkeys.getKeys(action, "notebook");
+        if (keys.some((key) => parseShortcut(key)(nativeEvent))) {
+          if (runAction(action)) {
+            evt.preventDefault();
           }
           return;
         }
